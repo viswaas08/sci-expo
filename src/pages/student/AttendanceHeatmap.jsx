@@ -45,9 +45,12 @@ export default function AttendanceHeatmap() {
   }, [currentUser]);
 
   const totalDays    = days.filter(d => d.weekday > 0 && d.weekday < 7).length;
-  const presentDays  = Object.values(attMap).filter(v => v === "present").length;
-  const absentDays   = Object.values(attMap).filter(v => v === "absent").length;
-  const pct          = totalDays ? Math.round((presentDays / Math.max(totalDays, 1)) * 100) : 0;
+  // Only count days that are in THIS month's calendar
+  const presentDays  = days.filter(d => attMap[d.date] === "present").length;
+  const absentDays   = days.filter(d => attMap[d.date] === "absent").length;
+  const recordedDays = presentDays + absentDays;
+  const pct          = recordedDays > 0 ? Math.round((presentDays / recordedDays) * 100) : 0;
+
 
   const cellColor = (date) => {
     const s = attMap[date];
