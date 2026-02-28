@@ -15,10 +15,10 @@ export default function StudentDashboard() {
     if (!currentUser) return;
     const fetchData = async () => {
       try {
-        const [attSnap, marksSnap] = await Promise.all([
+        const [attSnap, teacherMarksSnap, seededMarksSnap] = await Promise.all([
           getDocs(query(collection(db, "attendance"), where("studentId", "==", currentUser.uid))),
-          // Seed stored marks inside the "exams" collection (with studentId field)
-          getDocs(query(collection(db, "exams"), where("studentId", "==", currentUser.uid))),
+          getDocs(query(collection(db, "marks"),      where("studentId", "==", currentUser.uid))),
+          getDocs(query(collection(db, "exams"),      where("studentId", "==", currentUser.uid))),
         ]);
 
         // Attendance %
@@ -26,23 +26,38 @@ export default function StudentDashboard() {
         attSnap.forEach(d => { if (d.data().status === "present") present++; });
         const attPct = attSnap.size > 0 ? Math.round((present / attSnap.size) * 100) : 0;
 
-        // Marks — each doc has: subject, total, grade, internal1, internal2, external, assignment
-        const marks = marksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const totals = marks.map(m => m.total || 0).filter(t => t > 0);
-        const avg  = totals.length > 0 ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
-        const best = totals.length > 0 ? Math.max(...totals) : 0;
+        // Teacher-entered marks: have marksObtained + maxMarks + subject + examName
+        const teacherMarks = teacherMarksSnap.docs.map(d => ({
+          id: d.id, ...d.data(),
+          displayName: d.data().examName || d.data().subject || "Exam",
+          score: d.data().maxMarks ? Math.round((d.data().marksObtained / d.data().maxMarks) * 100) : 0,
+        }));
 
-        setStats({ attendancePct: attPct, examsCount: marks.length, avgMarks: avg, bestMark: best });
-        setRecentMarks(marks.slice(0, 5));
+        // Seeded marks: have subject + total + grade (stored in exams collection)
+        const seededMarks = seededMarksSnap.docs
+          .filter(d => d.data().subject) // seeded mark docs have subject field
+          .map(d => ({
+            id: d.id, ...d.data(),
+            displayName: d.data().subject,
+            score: d.data().total || 0,
+          }));
+
+        const allMarks = [...teacherMarks, ...seededMarks];
+        const scores   = allMarks.map(m => m.score).filter(s => s > 0);
+        const avg  = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+        const best = scores.length > 0 ? Math.max(...scores) : 0;
+
+        setStats({ attendancePct: attPct, examsCount: allMarks.length, avgMarks: avg, bestMark: best });
+        setRecentMarks(allMarks.slice(0, 5));
       } catch (err) {
-        console.error("StudentDashboard fetch error:", err);
-        // Don't crash — show page with zero stats
+        console.error("StudentDashboard fetch error:", err.code, err.message);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
   }, [currentUser]);
+
 
 
   const statItems = [

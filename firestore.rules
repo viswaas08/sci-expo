@@ -2,55 +2,45 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
     function isSignedIn() { return request.auth != null; }
     function getRole() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
-    function isAdmin() { return isSignedIn() && getRole() == 'admin'; }
+    function isAdmin()   { return isSignedIn() && getRole() == 'admin'; }
     function isTeacher() { return isSignedIn() && getRole() == 'teacher'; }
-    function isStudent() { return isSignedIn() && getRole() == 'student'; }
-    function isParent() { return isSignedIn() && getRole() == 'parent'; }
 
-    // Users collection
+    // Users — any signed-in user can read; admin/teacher write
     match /users/{userId} {
-      allow read: if isSignedIn() && (
-        request.auth.uid == userId || isAdmin() || isTeacher()
-      );
+      allow read: if isSignedIn();
       allow write: if isAdmin() || isTeacher();
-      allow create: if isSignedIn(); // For self-registration
+      allow create: if isSignedIn();
     }
 
-    // Departments - admin manages, all authenticated read
+    // Departments
     match /departments/{deptId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Config (admin bootstrap)
+    // Config
     match /config/{configId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
-    // Exams - teacher creates, students/parents read if in same class
+    // Exams — any signed-in user can read (student/parent/teacher/admin)
     match /exams/{examId} {
       allow read: if isSignedIn();
-      allow create: if isTeacher();
-      allow update, delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+      allow create: if isTeacher() || isAdmin();
+      allow update, delete: if isTeacher() || isAdmin();
     }
 
-    // Marks - teacher writes, student reads own, parent reads linked child
+    // Marks — any signed-in user can read; teacher/admin write
     match /marks/{markId} {
-      allow read: if isAdmin() || isTeacher() ||
-        (isStudent() && resource.data.studentId == request.auth.uid) ||
-        (isParent() && resource.data.studentId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedStudentId);
+      allow read: if isSignedIn();
       allow write: if isTeacher() || isAdmin();
     }
 
-    // Attendance - teacher writes, student/parent reads own
+    // Attendance — any signed-in user can read; teacher/admin write
     match /attendance/{attId} {
-      allow read: if isAdmin() || isTeacher() ||
-        (isStudent() && resource.data.studentId == request.auth.uid) ||
-        (isParent() && resource.data.studentId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedStudentId);
+      allow read: if isSignedIn();
       allow write: if isTeacher() || isAdmin();
     }
   }
