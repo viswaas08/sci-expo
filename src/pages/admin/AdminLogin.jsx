@@ -41,14 +41,30 @@ export default function AdminLogin() {
       if (snap.exists() && snap.data().role === "admin") {
         navigate("/admin");
       } else {
-        setError("This Google account is not registered as an admin.");
+        // Sign out so the ghost session doesn't persist
+        const { signOut } = await import("firebase/auth");
+        const { adminAuth } = await import("../../firebase");
+        await signOut(adminAuth);
+        setError(
+          `The Google account "${cred.user.email}" is not registered as an admin. ` +
+          `Ask an existing admin to add it via Settings → Admin Accounts first.`
+        );
       }
-    } catch {
-      setError("Google sign-in failed. Please try again.");
+    } catch (err) {
+      if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+        setError("Sign-in was cancelled. Please try again.");
+      } else if (err.code === "auth/popup-blocked") {
+        setError("Popup was blocked by your browser. Please allow popups for this site.");
+      } else if (err.code === "auth/operation-not-allowed") {
+        setError("Google sign-in is not enabled. Enable it in Firebase Console → Authentication → Sign-in methods.");
+      } else {
+        setError(err.message || "Google sign-in failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="login-page">

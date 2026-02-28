@@ -20,6 +20,13 @@ dist-ssr
 serviceAccountKey.json
 *serviceAccount*.json
 
+# Local admin utility scripts (use serviceAccountKey — local only)
+reset_password.mjs
+seed.mjs
+seed_phase2.mjs
+seed_dept.mjs
+
+
 
 # Editor directories and files
 .vscode/*
