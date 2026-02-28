@@ -18,6 +18,7 @@ import TeacherDashboard from "./pages/teacher/TeacherDashboard";
 import ManageStudents from "./pages/teacher/ManageStudents";
 import ManageExams from "./pages/teacher/ManageExams";
 import MarkAttendance from "./pages/teacher/MarkAttendance";
+import TeacherSettings from "./pages/teacher/TeacherSettings";
 
 // Student
 import StudentLogin from "./pages/student/StudentLogin";
@@ -25,6 +26,7 @@ import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentAttendance from "./pages/student/StudentAttendance";
 import StudentMarks from "./pages/student/StudentMarks";
 import StudentPortfolio from "./pages/student/StudentPortfolio";
+import StudentSettings from "./pages/student/StudentSettings";
 
 // Parent
 import ParentLogin from "./pages/parent/ParentLogin";
@@ -56,6 +58,7 @@ export default function App() {
           <Route path="/teacher/students" element={<ProtectedRoute allowedRole="teacher"><ManageStudents /></ProtectedRoute>} />
           <Route path="/teacher/exams" element={<ProtectedRoute allowedRole="teacher"><ManageExams /></ProtectedRoute>} />
           <Route path="/teacher/attendance" element={<ProtectedRoute allowedRole="teacher"><MarkAttendance /></ProtectedRoute>} />
+          <Route path="/teacher/settings" element={<ProtectedRoute allowedRole="teacher"><TeacherSettings /></ProtectedRoute>} />
 
           {/* Student */}
           <Route path="/student/login" element={<StudentLogin />} />
@@ -63,6 +66,7 @@ export default function App() {
           <Route path="/student/attendance" element={<ProtectedRoute allowedRole="student"><StudentAttendance /></ProtectedRoute>} />
           <Route path="/student/marks" element={<ProtectedRoute allowedRole="student"><StudentMarks /></ProtectedRoute>} />
           <Route path="/student/portfolio" element={<ProtectedRoute allowedRole="student"><StudentPortfolio /></ProtectedRoute>} />
+          <Route path="/student/settings" element={<ProtectedRoute allowedRole="student"><StudentSettings /></ProtectedRoute>} />
 
           {/* Parent */}
           <Route path="/parent/login" element={<ParentLogin />} />

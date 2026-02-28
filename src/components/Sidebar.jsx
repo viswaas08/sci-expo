@@ -18,6 +18,7 @@ const teacherNav = [
   { label: "Students", icon: <FaUserGraduate />, to: "/teacher/students" },
   { label: "Exams & Marks", icon: <FaBuilding />, to: "/teacher/exams" },
   { label: "Attendance", icon: <FaChalkboardTeacher />, to: "/teacher/attendance" },
+  { label: "Settings", icon: <FaCog />, to: "/teacher/settings" },
 ];
 
 const studentNav = [
@@ -25,6 +26,7 @@ const studentNav = [
   { label: "Attendance", icon: <FaChalkboardTeacher />, to: "/student/attendance" },
   { label: "Marks", icon: <FaBuilding />, to: "/student/marks" },
   { label: "Portfolio", icon: <FaUserGraduate />, to: "/student/portfolio" },
+  { label: "Settings", icon: <FaCog />, to: "/student/settings" },
 ];
 
 const parentNav = [

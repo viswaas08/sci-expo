@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
-import { db } from "../../firebase";
-import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
-import { auth, firebaseConfig } from "../../firebase";
+import { db, adminAuth, firebaseConfig } from "../../firebase";
+import { createUserWithEmailAndPassword, sendPasswordResetEmail, getAuth } from "firebase/auth";
 import { initializeApp } from "firebase/app";
 import Sidebar from "../../components/Sidebar";
-import { FaPlus, FaEdit, FaTrash, FaSave, FaTimes } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaSave, FaTimes, FaKey, FaEye, FaEyeSlash } from "react-icons/fa";
 
 const DEPTS = ["ECE", "IT", "MECH", "EEE", "CSE", "AIDS"];
 const YEARS = [1, 2, 3, 4];
@@ -26,6 +25,8 @@ export default function ManageTeachers() {
   const [form, setForm] = useState({ name: "", email: "", password: "", dept: "ECE", year: 1, section: "A", assignedClasses: [], responsibilities: "" });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [resetStatus, setResetStatus] = useState({});
+  const [revealedPwd, setRevealedPwd] = useState({});
 
   const fetchTeachers = async () => {
     const snap = await getDocs(query(collection(db, "users"), where("role", "==", "teacher")));
@@ -56,17 +57,17 @@ export default function ManageTeachers() {
         await updateDoc(doc(db, "users", editId), { name: form.name, dept: form.dept, year: form.year, section: form.section, assignedClasses: form.assignedClasses, responsibilities: form.responsibilities });
         setSuccess("Teacher updated successfully.");
       } else {
-        // Use a secondary app instance to create the user without logging out the current admin
-        const secondaryApp = initializeApp(firebaseConfig, "SecondaryAppTeacher");
+        const appName = `TeacherCreate_${Date.now()}`;
+        const secondaryApp = initializeApp(firebaseConfig, appName);
         const secondaryAuth = getAuth(secondaryApp);
-        
         try {
           const cred = await createUserWithEmailAndPassword(secondaryAuth, form.email, form.password);
           await setDoc(doc(db, "users", cred.user.uid), {
             name: form.name, email: form.email, role: "teacher",
             dept: form.dept, year: form.year, section: form.section,
             assignedClasses: form.assignedClasses, responsibilities: form.responsibilities,
-            uid: cred.user.uid, createdAt: new Date().toISOString(),
+            uid: cred.user.uid, initialPassword: form.password,
+            createdAt: new Date().toISOString(),
           });
           setSuccess("Teacher account created successfully.");
         } finally {
@@ -79,6 +80,19 @@ export default function ManageTeachers() {
       setError(err.message || "Failed to save teacher.");
     }
   };
+
+  const handleResetPassword = async (teacher) => {
+    setResetStatus(p => ({ ...p, [teacher.id]: "sending" }));
+    try {
+      await sendPasswordResetEmail(adminAuth, teacher.email);
+      setResetStatus(p => ({ ...p, [teacher.id]: "sent" }));
+      setTimeout(() => setResetStatus(p => ({ ...p, [teacher.id]: null })), 4000);
+    } catch {
+      setResetStatus(p => ({ ...p, [teacher.id]: "error" }));
+    }
+  };
+
+  const toggleReveal = (id) => setRevealedPwd(p => ({ ...p, [id]: !p[id] }));
 
   const handleEdit = (t) => {
     // Ensure assignedClasses is always an array when editing
@@ -224,7 +238,7 @@ export default function ManageTeachers() {
             <table>
               <thead>
                 <tr>
-                  <th>Name</th><th>Email</th><th>Details</th><th>Classes & Role</th><th>Actions</th>
+                  <th>Name</th><th>Email</th><th>Details</th><th>Classes & Role</th><th>Password</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,9 +268,30 @@ export default function ManageTeachers() {
                       </div>
                     </td>
                     <td>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(t)}><FaEdit /></button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t.id)}><FaTrash /></button>
+                      {t.initialPassword ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontFamily: "monospace", fontSize: 12 }}>
+                            {revealedPwd[t.id] ? t.initialPassword : "••••••••"}
+                          </span>
+                          <button className="btn btn-secondary btn-sm" onClick={() => toggleReveal(t.id)}>
+                            {revealedPwd[t.id] ? <FaEyeSlash /> : <FaEye />}
+                          </button>
+                        </div>
+                      ) : <span style={{ color: "var(--text-muted)", fontSize: 12 }}>Not stored</span>}
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(t)} title="Edit"><FaEdit /></button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t.id)} title="Delete"><FaTrash /></button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleResetPassword(t)}
+                          disabled={resetStatus[t.id] === "sending"}
+                          title="Send password reset email"
+                        >
+                          {resetStatus[t.id] === "sending" ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <FaKey />}
+                          {resetStatus[t.id] === "sent" ? " Sent!" : resetStatus[t.id] === "error" ? " Failed" : " Reset"}
+                        </button>
                       </div>
                     </td>
                   </tr>

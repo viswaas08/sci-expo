@@ -13,9 +13,14 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentUser || !userData?.linkedStudentId) return;
+    if (!currentUser) return;
+    const childId = userData?.linkedStudentId || userData?.studentUid;
+    if (!childId) {
+      // No child linked yet — stop spinner and show the "not linked" card
+      setLoading(false);
+      return;
+    }
     const fetchData = async () => {
-      const childId = userData.linkedStudentId;
       const [childSnap, attSnap, marksSnap, examsSnap] = await Promise.all([
         getDoc(doc(db, "users", childId)),
         getDocs(query(collection(db, "attendance"), where("studentId", "==", childId))),
@@ -32,7 +37,7 @@ export default function ParentDashboard() {
       examsSnap.forEach(d => { examMap[d.id] = d.data(); });
       const marks = marksSnap.docs.map(d => ({ id: d.id, ...d.data(), exam: examMap[d.data().examId] }));
       const pctMarks = marks.map(m => m.exam ? Math.round((m.marksObtained / m.exam.maxMarks) * 100) : 0);
-      const avg = pctMarks.length > 0 ? Math.round(pctMarks.reduce((a, b) => a + b, 0) / pctMarks.length) : 0;
+      const avg  = pctMarks.length > 0 ? Math.round(pctMarks.reduce((a, b) => a + b, 0) / pctMarks.length) : 0;
       const best = pctMarks.length > 0 ? Math.max(...pctMarks) : 0;
 
       setStats({ attPct, examsCount: marks.length, avgMarks: avg, bestMark: best });
@@ -41,6 +46,7 @@ export default function ParentDashboard() {
     };
     fetchData();
   }, [currentUser, userData]);
+
 
   const statItems = [
     { label: "Attendance", value: `${stats.attPct}%`, icon: <FaCalendarCheck />, color: "var(--accent-green)", bg: "rgba(52,211,153,0.15)" },
