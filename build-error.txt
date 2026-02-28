@@ -1,0 +1,106 @@
+﻿[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 249 modules transformed.
+node.exe : 
+[31mΓ£ù[39m Build 
+failed in 1.82s
+At line:1 char:1
++ & "C:\Program Files
+\nodejs/node.exe" "C:
+\Users\viswa\AppData\
+Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: ([31mΓ£   
+ ù[39m Build fai    
+led in 1.82s:Str    
+ing) [], RemoteE    
+xception
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+[31merror during 
+build:
+[31m[vite]: Rollup 
+failed to resolve 
+import "react-is" 
+from "C:/Users/viswa/
+Desktop/SCI EXPO/node
+_modules/recharts/es6
+/util/ReactUtils.js".
+This is most likely 
+unintended because 
+it can break your 
+application at 
+runtime.
+If you do want to 
+externalize this 
+module explicitly 
+add it to
+`build.rollupOptions.
+external`[31m
+    at viteLog (file:
+///C:/Users/viswa/Des
+ktop/SCI%20EXPO/node_
+modules/vite/dist/nod
+e/chunks/config.js:33
+635:57)
+    at file:///C:/Use
+rs/viswa/Desktop/SCI%
+20EXPO/node_modules/v
+ite/dist/node/chunks/
+config.js:33669:73
+    at onwarn (file:/
+//C:/Users/viswa/Desk
+top/SCI%20EXPO/node_m
+odules/@vitejs/plugin
+-react/dist/index.js:
+76:7)
+    at file:///C:/Use
+rs/viswa/Desktop/SCI%
+20EXPO/node_modules/v
+ite/dist/node/chunks/
+config.js:33669:28
+    at onRollupLog (f
+ile:///C:/Users/viswa
+/Desktop/SCI%20EXPO/n
+ode_modules/vite/dist
+/node/chunks/config.j
+s:33664:63)
+    at onLog (file://
+/C:/Users/viswa/Deskt
+op/SCI%20EXPO/node_mo
+dules/vite/dist/node/
+chunks/config.js:3346
+7:4)
+    at file:///C:/Use
+rs/viswa/Desktop/SCI%
+20EXPO/node_modules/r
+ollup/dist/es/shared/
+node-entry.js:20981:3
+2
+    at Object.logger 
+[as onLog] (file:///C
+:/Users/viswa/Desktop
+/SCI%20EXPO/node_modu
+les/rollup/dist/es/sh
+ared/node-entry.js:22
+968:9)
+    at ModuleLoader.h
+andleInvalidResolvedI
+d (file:///C:/Users/v
+iswa/Desktop/SCI%20EX
+PO/node_modules/rollu
+p/dist/es/shared/node
+-entry.js:21712:26)
+    at file:///C:/Use
+rs/viswa/Desktop/SCI%
+20EXPO/node_modules/r
+ollup/dist/es/shared/
+node-entry.js:21670:2
+6[39m

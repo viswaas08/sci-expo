@@ -1,0 +1,71 @@
+
+> student-performance-portal@0.0.0 lint
+> eslint .
+
+
+C:\Users\viswa\Desktop\SCI EXPO\src\context\AuthContext.jsx
+  78:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\viswa\Desktop\SCI EXPO\src\firebase.js
+  23:7  error  'analytics' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\viswa\Desktop\SCI EXPO\src\pages\admin\AdminSettings.jsx
+  1:20  error  'useEffect' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  2:10  error  'doc' is defined but never used. Allowed unused vars must match /^[A-Z_]/u        no-unused-vars
+  2:15  error  'getDoc' is defined but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  2:23  error  'setDoc' is defined but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  4:10  error  'db' is defined but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+  4:14  error  'auth' is defined but never used. Allowed unused vars must match /^[A-Z_]/u       no-unused-vars
+
+C:\Users\viswa\Desktop\SCI EXPO\src\pages\admin\ManageDepartments.jsx
+   2:55  error    'updateDoc' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                               no-unused-vars
+  31:38  warning  React Hook useEffect has a missing dependency: 'fetchDepts'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\viswa\Desktop\SCI EXPO\src\pages\admin\ManageTeachers.jsx
+  28:21  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  26 |   };
+  27 |
+> 28 |   useEffect(() => { fetchTeachers(); }, []);
+     |                     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  29 |
+  30 |   const resetForm = () => { setForm({ name: "", email: "", password: "", dept: "ECE", year: 1, section: "A", assignedClasses: "", responsibilities: "" }); setEditId(null); setShowForm(false); setError(""); };
+  31 |  react-hooks/set-state-in-effect
+
+C:\Users\viswa\Desktop\SCI EXPO\src\pages\student\StudentDashboard.jsx
+  2:45  error  'onSnapshot' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\viswa\Desktop\SCI EXPO\src\pages\student\StudentPortfolio.jsx
+  15:24  error  'userData' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\viswa\Desktop\SCI EXPO\src\pages\teacher\ManageExams.jsx
+  43:55  warning  React Hook useEffect has missing dependencies: 'fetchExams' and 'fetchStudents'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\viswa\Desktop\SCI EXPO\src\pages\teacher\ManageStudents.jsx
+  16:10  error    'parentForm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+  16:22  error    'setParentForm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     no-unused-vars
+  29:21  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  27 |   };
+  28 |
+> 29 |   useEffect(() => { fetchStudents(); }, [userData]);
+     |                     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  30 |
+  31 |   const resetForm = () => { setForm({ name: "", rollNo: "", email: "", password: "" }); setEditId(null); setShowForm(false); setError(""); };
+  32 |  react-hooks/set-state-in-effect
+  29:41  warning  React Hook useEffect has a missing dependency: 'fetchStudents'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+
+✖ 18 problems (15 errors, 3 warnings)
+

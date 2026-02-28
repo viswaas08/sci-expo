@@ -1,0 +1,29 @@
+
+> student-performance-portal@0.0.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 726 modules transformed.
+[31m✗[39m Build failed in 3.85s
+[31merror during build:
+[31msrc/context/AuthContext.jsx (10:9): "auth" is not exported by "src/firebase.js", imported by "src/context/AuthContext.jsx".[31m
+file: [36mC:/Users/viswa/Desktop/SCI EXPO/src/context/AuthContext.jsx:10:9[31m
+[33m
+ 8: } from "firebase/auth";
+ 9: import { doc, getDoc, setDoc } from "firebase/firestore";
+10: import { auth, db, googleProvider } from "../firebase";
+             ^
+11: 
+12: const AuthContext = createContext(null);
+[31m
+    at getRollupError (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/parseAst.js:402:41)
+    at error (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/parseAst.js:398:42)
+    at Module.error (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/node-entry.js:17040:16)
+    at Module.traceVariable (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/node-entry.js:17452:29)
+    at ModuleScope.findVariable (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/node-entry.js:15070:39)
+    at FunctionScope.findVariable (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/node-entry.js:5673:38)
+    at FunctionBodyScope.findVariable (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/node-entry.js:5673:38)
+    at ReturnValueScope.findVariable (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/node-entry.js:5673:38)
+    at FunctionBodyScope.findVariable (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/node-entry.js:5673:38)
+    at Identifier.bind (file:///C:/Users/viswa/Desktop/SCI%20EXPO/node_modules/rollup/dist/es/shared/node-entry.js:5447:40)[39m

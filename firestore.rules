@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function getRole() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
+    function isAdmin() { return isSignedIn() && getRole() == 'admin'; }
+    function isTeacher() { return isSignedIn() && getRole() == 'teacher'; }
+    function isStudent() { return isSignedIn() && getRole() == 'student'; }
+    function isParent() { return isSignedIn() && getRole() == 'parent'; }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId || isAdmin() || isTeacher()
+      );
+      allow write: if isAdmin() || isTeacher();
+      allow create: if isSignedIn(); // For self-registration
+    }
+
+    // Departments - admin manages, all authenticated read
+    match /departments/{deptId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Config (admin bootstrap)
+    match /config/{configId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Exams - teacher creates, students/parents read if in same class
+    match /exams/{examId} {
+      allow read: if isSignedIn();
+      allow create: if isTeacher();
+      allow update, delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+
+    // Marks - teacher writes, student reads own, parent reads linked child
+    match /marks/{markId} {
+      allow read: if isAdmin() || isTeacher() ||
+        (isStudent() && resource.data.studentId == request.auth.uid) ||
+        (isParent() && resource.data.studentId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedStudentId);
+      allow write: if isTeacher() || isAdmin();
+    }
+
+    // Attendance - teacher writes, student/parent reads own
+    match /attendance/{attId} {
+      allow read: if isAdmin() || isTeacher() ||
+        (isStudent() && resource.data.studentId == request.auth.uid) ||
+        (isParent() && resource.data.studentId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedStudentId);
+      allow write: if isTeacher() || isAdmin();
+    }
+  }
+}
