@@ -15,10 +15,10 @@ export default function StudentDashboard() {
     if (!currentUser) return;
     const fetchData = async () => {
       try {
-        const [attSnap, marksSnap, examsSnap] = await Promise.all([
+        const [attSnap, marksSnap] = await Promise.all([
           getDocs(query(collection(db, "attendance"), where("studentId", "==", currentUser.uid))),
-          getDocs(query(collection(db, "marks"), where("studentId", "==", currentUser.uid))),
-          getDocs(collection(db, "exams")),
+          // Seed stored marks inside the "exams" collection (with studentId field)
+          getDocs(query(collection(db, "exams"), where("studentId", "==", currentUser.uid))),
         ]);
 
         // Attendance %
@@ -26,22 +26,24 @@ export default function StudentDashboard() {
         attSnap.forEach(d => { if (d.data().status === "present") present++; });
         const attPct = attSnap.size > 0 ? Math.round((present / attSnap.size) * 100) : 0;
 
-        // Exams map
-        const examMap = {};
-        examsSnap.forEach(d => { examMap[d.id] = d.data(); });
-
-        // Marks
-        const marks = marksSnap.docs.map(d => ({ id: d.id, ...d.data(), exam: examMap[d.data().examId] }));
-        const pctMarks = marks.map(m => m.exam ? Math.round((m.marksObtained / m.exam.maxMarks) * 100) : 0);
-        const avg = pctMarks.length > 0 ? Math.round(pctMarks.reduce((a, b) => a + b, 0) / pctMarks.length) : 0;
-        const best = pctMarks.length > 0 ? Math.max(...pctMarks) : 0;
+        // Marks — each doc has: subject, total, grade, internal1, internal2, external, assignment
+        const marks = marksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const totals = marks.map(m => m.total || 0).filter(t => t > 0);
+        const avg  = totals.length > 0 ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
+        const best = totals.length > 0 ? Math.max(...totals) : 0;
 
         setStats({ attendancePct: attPct, examsCount: marks.length, avgMarks: avg, bestMark: best });
-        setRecentMarks(marks.sort((a, b) => b.exam?.date?.localeCompare(a.exam?.date || "") || 0).slice(0, 5));
-      } finally { setLoading(false); }
+        setRecentMarks(marks.slice(0, 5));
+      } catch (err) {
+        console.error("StudentDashboard fetch error:", err);
+        // Don't crash — show page with zero stats
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, [currentUser]);
+
 
   const statItems = [
     { label: "Attendance", value: `${stats.attendancePct}%`, icon: <FaCalendarCheck />, color: "var(--accent-green)", bg: "rgba(52,211,153,0.15)" },
@@ -72,26 +74,25 @@ export default function StudentDashboard() {
             </div>
 
             <div className="glass-card" style={{ maxWidth: 600 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Recent Exam Results</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Recent Subjects & Scores</h3>
               {recentMarks.length === 0 ? (
                 <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No marks recorded yet.</p>
-              ) : recentMarks.map(m => {
-                const pct = m.exam ? Math.round((m.marksObtained / m.exam.maxMarks) * 100) : 0;
-                return (
-                  <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                    <div>
-                      <div style={{ fontWeight: 500, fontSize: 14 }}>{m.exam?.name || "Exam"}</div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{m.exam?.subject} · {m.exam?.date}</div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <span className={`badge ${pct >= 75 ? "badge-green" : pct >= 50 ? "badge-orange" : "badge-red"}`}>
-                        {m.marksObtained}/{m.exam?.maxMarks}
-                      </span>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{pct}%</div>
+              ) : recentMarks.map(m => (
+                <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: 14 }}>{m.subject || "Subject"}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      Internal: {m.internal1 ?? "—"} + {m.internal2 ?? "—"} · External: {m.external ?? "—"}
                     </div>
                   </div>
-                );
-              })}
+                  <div style={{ textAlign: "right" }}>
+                    <span className={`badge ${m.grade === "O" || m.grade === "A+" ? "badge-green" : m.grade === "A" || m.grade === "B+" ? "badge-blue" : m.grade === "B" || m.grade === "C" ? "badge-orange" : "badge-red"}`}>
+                      {m.grade || "—"}
+                    </span>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Total: {m.total ?? "—"}/145</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         )}
