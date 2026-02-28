@@ -3,20 +3,21 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
-import { FaArrowLeft } from "react-icons/fa";
+import { FaArrowLeft, FaInfoCircle } from "react-icons/fa";
 
 export default function TeacherLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError]     = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
+      // Allow full email or just username part (auto-appends @school.edu)
       const loginEmail = username.includes("@") ? username.trim() : `${username.trim().toLowerCase()}@school.edu`;
       const cred = await login(loginEmail, password);
       const snap = await getDoc(doc(db, "users", cred.user.uid));
@@ -25,8 +26,12 @@ export default function TeacherLogin() {
       } else {
         setError("Access denied. Not a teacher account.");
       }
-    } catch {
-      setError("Invalid email or password.");
+    } catch (err) {
+      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+        setError("Invalid email or password. Check the format shown below.");
+      } else {
+        setError(err.message || "Login failed. Please try again.");
+      }
     } finally { setLoading(false); }
   };
 
@@ -43,13 +48,31 @@ export default function TeacherLogin() {
         </div>
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={handleLogin}>
-          <div className="form-group"><label>Email or Username</label><input className="form-control" type="text" placeholder="teacher or teacher@school.edu" value={username} onChange={e => setUsername(e.target.value)} required /></div>
-          <div className="form-group"><label>Password</label><input className="form-control" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required /></div>
+          <div className="form-group">
+            <label>Email or Username</label>
+            <input className="form-control" type="text" placeholder="e.g. teacher.ece1@school.edu" value={username} onChange={e => setUsername(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label>Password</label>
+            <input className="form-control" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+          </div>
           <button className="btn btn-primary w-full btn-lg" type="submit" disabled={loading}>
             {loading ? <span className="spinner" /> : "Sign In as Teacher"}
           </button>
         </form>
+
+        {/* Credential hint */}
+        <div style={{ marginTop: 20, padding: "12px 16px", background: "rgba(240,147,251,0.08)", borderRadius: 10, border: "1px solid rgba(240,147,251,0.2)", fontSize: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--accent-purple)", fontWeight: 600, marginBottom: 8 }}>
+            <FaInfoCircle /> Default Credentials Format
+          </div>
+          <div style={{ color: "var(--text-secondary)", lineHeight: 1.8 }}>
+            <div><strong style={{ color: "var(--text-primary)" }}>Email:</strong> <code>teacher.ece1@school.edu</code> <span style={{ opacity: 0.6 }}>(teacher.DEPT+NUMBER@school.edu)</span></div>
+            <div><strong style={{ color: "var(--text-primary)" }}>Password:</strong> <code>Teacher@ECE1</code> <span style={{ opacity: 0.6 }}>(Teacher@ + DEPT + NUMBER)</span></div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+

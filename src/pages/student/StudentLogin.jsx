@@ -3,25 +3,39 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
-import { FaArrowLeft } from "react-icons/fa";
+import { FaArrowLeft, FaInfoCircle } from "react-icons/fa";
 
 export default function StudentLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState(""); const [password, setPassword] = useState("");
-  const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError]     = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault(); setError(""); setLoading(true);
     try {
-      // Allow them to type full email, or assume it's a roll number and append the domain
-      const loginEmail = username.includes("@") ? username.trim() : `${username.trim().toLowerCase()}@student.portal`;
+      // Allow full email OR just the roll number (auto-appends domain)
+      const loginEmail = username.includes("@")
+        ? username.trim()
+        : `${username.trim().toLowerCase()}@student.portal`;
       const cred = await login(loginEmail, password);
       const snap = await getDoc(doc(db, "users", cred.user.uid));
-      if (snap.exists() && snap.data().role === "student") { navigate("/student"); }
-      else { setError("Access denied. Not a student account."); }
-    } catch { setError("Invalid username or password."); }
-    finally { setLoading(false); }
+      if (snap.exists() && snap.data().role === "student") {
+        navigate("/student");
+      } else {
+        setError("Access denied. Not a student account.");
+      }
+    } catch (err) {
+      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+        setError("Invalid roll number or password. Check the format shown below.");
+      } else {
+        setError(err.message || "Login failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -35,13 +49,49 @@ export default function StudentLogin() {
           <h1>Student Portal</h1>
           <p>Sign in to track your academic performance</p>
         </div>
+
         {error && <div className="alert alert-error">{error}</div>}
+
         <form onSubmit={handleLogin}>
-          <div className="form-group"><label>Roll Number / Username</label><input className="form-control" type="text" placeholder="e.g. 24ECE1" value={username} onChange={e => setUsername(e.target.value)} required /></div>
-          <div className="form-group"><label>Password</label><input className="form-control" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required /></div>
-          <button className="btn btn-primary w-full btn-lg" type="submit" disabled={loading}>{loading ? <span className="spinner" /> : "Sign In as Student"}</button>
+          <div className="form-group">
+            <label>Roll Number</label>
+            <input
+              className="form-control"
+              type="text"
+              placeholder="e.g. 24_ECE_A_01"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              className="form-control"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button className="btn btn-primary w-full btn-lg" type="submit" disabled={loading}>
+            {loading ? <span className="spinner" /> : "Sign In as Student"}
+          </button>
         </form>
+
+        {/* Credential hint */}
+        <div style={{ marginTop: 20, padding: "12px 16px", background: "rgba(79,172,254,0.08)", borderRadius: 10, border: "1px solid rgba(79,172,254,0.2)", fontSize: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--accent-blue)", fontWeight: 600, marginBottom: 8 }}>
+            <FaInfoCircle /> Default Credentials Format
+          </div>
+          <div style={{ color: "var(--text-secondary)", lineHeight: 1.8 }}>
+            <div><strong style={{ color: "var(--text-primary)" }}>Roll No:</strong> <code>24_ECE_A_01</code> <span style={{ opacity: 0.6 }}>(YEAR_DEPT_SECTION_NUMBER)</span></div>
+            <div><strong style={{ color: "var(--text-primary)" }}>Password:</strong> <code>Student@24_ECE_A_01</code> <span style={{ opacity: 0.6 }}>(Student@ + roll no)</span></div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
