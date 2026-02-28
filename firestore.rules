@@ -2,46 +2,51 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() { return request.auth != null; }
-    function getRole() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
-    function isAdmin()   { return isSignedIn() && getRole() == 'admin'; }
-    function isTeacher() { return isSignedIn() && getRole() == 'teacher'; }
+    function isSignedInAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isSignedInTeacher() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+    function isAdminOrTeacher() { return isSignedInAdmin() || isSignedInTeacher(); }
 
-    // Users — any signed-in user can read; admin/teacher write
+    // Users — public read (student/parent portals use separate Firebase apps;
+    // their auth tokens are invisible to adminApp-bound Firestore)
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || isTeacher();
-      allow create: if isSignedIn();
+      allow read: if true;
+      allow write: if isAdminOrTeacher() || (request.auth != null && request.auth.uid == userId);
+      allow create: if request.auth != null;
     }
 
-    // Departments
+    // Departments — public read
     match /departments/{deptId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read: if true;
+      allow write: if isSignedInAdmin();
     }
 
-    // Config
+    // Config — admin only
     match /config/{configId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isSignedInAdmin();
     }
 
-    // Exams — any signed-in user can read (student/parent/teacher/admin)
+    // Exams — public read; teacher/admin write
     match /exams/{examId} {
-      allow read: if isSignedIn();
-      allow create: if isTeacher() || isAdmin();
-      allow update, delete: if isTeacher() || isAdmin();
+      allow read: if true;
+      allow write: if isAdminOrTeacher();
     }
 
-    // Marks — any signed-in user can read; teacher/admin write
+    // Marks — public read; teacher/admin write
     match /marks/{markId} {
-      allow read: if isSignedIn();
-      allow write: if isTeacher() || isAdmin();
+      allow read: if true;
+      allow write: if isAdminOrTeacher();
     }
 
-    // Attendance — any signed-in user can read; teacher/admin write
+    // Attendance — public read; teacher/admin write
     match /attendance/{attId} {
-      allow read: if isSignedIn();
-      allow write: if isTeacher() || isAdmin();
+      allow read: if true;
+      allow write: if isAdminOrTeacher();
     }
   }
 }
