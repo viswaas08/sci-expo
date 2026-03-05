@@ -6,7 +6,7 @@ import {
   FaHome, FaChalkboardTeacher, FaBuilding, FaUserGraduate,
   FaCog, FaSignOutAlt, FaSun, FaMoon, FaBell, FaBars, FaTimes,
   FaBullhorn, FaCalendarAlt, FaClipboardList, FaComments, FaMoneyBill,
-  FaSearch, FaAward, FaFire, FaFilePdf,
+  FaSearch, FaAward, FaFire, FaFilePdf, FaUserTie, FaLayerGroup, FaListAlt,
 } from "react-icons/fa";
 
 const adminNav = [
@@ -14,9 +14,18 @@ const adminNav = [
   { label: "Teachers",     icon: <FaChalkboardTeacher />, to: "/admin/teachers" },
   { label: "Departments",  icon: <FaBuilding />,         to: "/admin/departments" },
   { label: "All Students", icon: <FaUserGraduate />,     to: "/admin/students" },
+  { label: "Office Staff", icon: <FaUserTie />,          to: "/admin/office-staff" },
   { label: "Announcements",icon: <FaBullhorn />,         to: "/admin/announcements" },
   { label: "Audit Log",    icon: <FaClipboardList />,    to: "/admin/audit" },
   { label: "Settings",     icon: <FaCog />,              to: "/admin/settings" },
+];
+
+const officeNav = [
+  { label: "Dashboard",     icon: <FaHome />,          to: "/office" },
+  { label: "Fee Structure", icon: <FaLayerGroup />,    to: "/office/fee-structure" },
+  { label: "Student Fees",  icon: <FaMoneyBill />,     to: "/office/student-fees" },
+  { label: "Deadlines",     icon: <FaCalendarAlt />,   to: "/office/deadlines" },
+  { label: "Payment History",icon: <FaListAlt />,      to: "/office/payment-history" },
 ];
 
 const teacherNav = [
@@ -54,13 +63,14 @@ const parentNav = [
   { label: "Chat Teacher", icon: <FaComments />,         to: "/parent/chat" },
 ];
 
-const navMap = { admin: adminNav, teacher: teacherNav, student: studentNav, parent: parentNav };
+const navMap = { admin: adminNav, teacher: teacherNav, student: studentNav, parent: parentNav, office_staff: officeNav };
 
 const roleLabels = {
-  admin:   { label: "Admin",   color: "var(--accent-purple)" },
-  teacher: { label: "Teacher", color: "var(--accent-orange)" },
-  student: { label: "Student", color: "var(--accent-blue)"   },
-  parent:  { label: "Parent",  color: "var(--accent-green)"  },
+  admin:        { label: "Admin",        color: "var(--accent-purple)" },
+  teacher:      { label: "Teacher",      color: "var(--accent-orange)" },
+  student:      { label: "Student",      color: "var(--accent-blue)"   },
+  parent:       { label: "Parent",       color: "var(--accent-green)"  },
+  office_staff: { label: "Office Staff", color: "#f59e0b"               },
 };
 
 export default function Sidebar() {

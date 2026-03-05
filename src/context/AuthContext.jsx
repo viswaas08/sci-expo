@@ -7,7 +7,7 @@ import {
   createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { adminAuth, teacherAuth, studentAuth, parentAuth, db, googleProvider } from "../firebase";
+import { adminAuth, teacherAuth, studentAuth, parentAuth, officeAuth, db, googleProvider } from "../firebase";
 import { useLocation } from "react-router-dom";
 
 // Pick the correct isolated auth instance based on the portal URL path.
@@ -17,6 +17,7 @@ function getPortalAuth(pathname) {
   if (pathname.startsWith("/teacher")) return teacherAuth;
   if (pathname.startsWith("/student")) return studentAuth;
   if (pathname.startsWith("/parent"))  return parentAuth;
+  if (pathname.startsWith("/office"))  return officeAuth;
   return adminAuth; // default: admin portal
 }
 

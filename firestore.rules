@@ -10,7 +10,12 @@ service cloud.firestore {
       return request.auth != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
     }
-    function isAdminOrTeacher() { return isAdmin() || isTeacher(); }
+    function isOfficeStaff() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'office_staff';
+    }
+    function isAdminOrTeacher()      { return isAdmin() || isTeacher(); }
+    function isAdminOrOffice()       { return isAdmin() || isOfficeStaff(); }
 
     // All collections use public reads (multi-portal Firebase app instances mean
     // student/parent auth tokens are not visible to the adminApp-bound Firestore)
@@ -18,7 +23,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if true;
-      allow write: if isAdminOrTeacher() || (request.auth != null && request.auth.uid == userId);
+      allow write: if isAdminOrTeacher() || isOfficeStaff() || (request.auth != null && request.auth.uid == userId);
       allow create: if request.auth != null;
     }
     match /departments/{id}     { allow read: if true; allow write: if isAdmin(); }
@@ -32,5 +37,25 @@ service cloud.firestore {
     match /leaveRequests/{id}   { allow read: if true; allow write: if request.auth != null; }
     match /chat/{id}            { allow read: if true; allow write: if request.auth != null; }
     match /auditLog/{id}        { allow read: if isAdmin(); allow write: if request.auth != null; }
+
+    // ── Fee Management ────────────────────────────────────────────────────
+    // Fee structures: office staff and admin can write; parents/students can read
+    match /feeStructures/{structureId} {
+      allow read: if true;
+      allow write: if isAdminOrOffice();
+      match /semesters/{semId} {
+        allow read: if true;
+        allow write: if isAdminOrOffice();
+      }
+    }
+    // Fee payments: office staff and admin can write; the owning student/parent can read
+    match /feePayments/{paymentId} {
+      allow read: if true;
+      allow write: if isAdminOrOffice();
+      match /semesters/{semId} {
+        allow read: if true;
+        allow write: if isAdminOrOffice();
+      }
+    }
   }
 }

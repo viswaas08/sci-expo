@@ -22,6 +22,7 @@ const adminApp   = initializeApp(firebaseConfig, "adminApp");
 const teacherApp = initializeApp(firebaseConfig, "teacherApp");
 const studentApp = initializeApp(firebaseConfig, "studentApp");
 const parentApp  = initializeApp(firebaseConfig, "parentApp");
+const officeApp  = initializeApp(firebaseConfig, "officeApp");
 
 // Shared Firestore (only one DB needed; auth is per-portal)
 const _defaultApp = adminApp;
@@ -32,6 +33,7 @@ export const adminAuth   = getAuth(adminApp);
 export const teacherAuth = getAuth(teacherApp);
 export const studentAuth = getAuth(studentApp);
 export const parentAuth  = getAuth(parentApp);
+export const officeAuth  = getAuth(officeApp);
 
 // Legacy: keeps old imports working for files not yet migrated
 export const auth = adminAuth;

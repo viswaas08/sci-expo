@@ -14,6 +14,14 @@ import ManageDepartments from "./pages/admin/ManageDepartments";
 import AdminSettings    from "./pages/admin/AdminSettings";
 import AllStudents      from "./pages/admin/AllStudents";
 import AuditLog         from "./pages/admin/AuditLog";
+import ManageOfficeStaff from "./pages/admin/ManageOfficeStaff";
+
+// Office Staff
+import OfficeDashboard     from "./pages/office/OfficeDashboard";
+import ManageFeeStructure  from "./pages/office/ManageFeeStructure";
+import StudentFeeRecords   from "./pages/office/StudentFeeRecords";
+import FeesDeadlines       from "./pages/office/FeesDeadlines";
+import PaymentHistory      from "./pages/office/PaymentHistory";
 
 // Teacher
 import TeacherLogin     from "./pages/teacher/TeacherLogin";
@@ -69,9 +77,17 @@ export default function App() {
             <Route path="/admin/teachers"    element={P("admin", ManageTeachers)} />
             <Route path="/admin/departments" element={P("admin", ManageDepartments)} />
             <Route path="/admin/students"    element={P("admin", AllStudents)} />
+            <Route path="/admin/office-staff" element={P("admin", ManageOfficeStaff)} />
             <Route path="/admin/settings"    element={P("admin", AdminSettings)} />
             <Route path="/admin/announcements" element={P("admin", Announcements)} />
             <Route path="/admin/audit"       element={P("admin", AuditLog)} />
+
+            {/* ── Office Staff ───────────────────────────────────── */}
+            <Route path="/office"                 element={P("office_staff", OfficeDashboard)} />
+            <Route path="/office/fee-structure"   element={P("office_staff", ManageFeeStructure)} />
+            <Route path="/office/student-fees"    element={P("office_staff", StudentFeeRecords)} />
+            <Route path="/office/deadlines"       element={P("office_staff", FeesDeadlines)} />
+            <Route path="/office/payment-history" element={P("office_staff", PaymentHistory)} />
 
             {/* ── Teacher ───────────────────────────────────────── */}
             <Route path="/teacher/login"     element={<TeacherLogin />} />
