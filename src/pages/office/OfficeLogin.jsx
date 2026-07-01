@@ -3,19 +3,18 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
-import { FaArrowLeft, FaGoogle, FaUserShield, FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaArrowLeft, FaGoogle, FaUserTie, FaEye, FaEyeSlash } from "react-icons/fa";
 
-// ── Default Credentials (hardcoded for easy first-time access) ────────────────
-const DEFAULT_ADMIN_EMAIL    = "admin@school.edu";
-const DEFAULT_ADMIN_PASSWORD = "ADMIN@1234";
+// Default credentials for easy first-time access
+const DEFAULT_OFFICE_EMAIL = "ds3500140@gmail.com";
 
-export default function AdminLogin() {
+export default function OfficeLogin() {
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail]       = useState(DEFAULT_ADMIN_EMAIL);
-  const [password, setPassword] = useState(DEFAULT_ADMIN_PASSWORD);
+  const [email, setEmail] = useState(DEFAULT_OFFICE_EMAIL);
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError]   = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
@@ -25,15 +24,21 @@ export default function AdminLogin() {
     try {
       const cred = await login(email, password);
       const snap = await getDoc(doc(db, "users", cred.user.uid));
-      if (snap.exists() && snap.data().role === "admin") {
-        navigate("/admin");
-      } else if (snap.exists() && snap.data().role === "office_staff") {
+      if (snap.exists() && snap.data().role === "office_staff") {
         navigate("/office");
       } else {
-        setError("Access denied. This account does not have admin or office staff privileges.");
+        // Sign out if they log into the wrong portal
+        const { signOut } = await import("firebase/auth");
+        const { officeAuth } = await import("../../firebase");
+        await signOut(officeAuth);
+        setError("Access denied. This account does not have office staff privileges.");
       }
-    } catch {
-      setError("Invalid credentials. Please check your email and password.");
+    } catch (err) {
+      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+        setError("Invalid email or password. Check the format shown below.");
+      } else {
+        setError(err.message || "Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -45,27 +50,19 @@ export default function AdminLogin() {
     try {
       const cred = await loginWithGoogle();
       const snap = await getDoc(doc(db, "users", cred.user.uid));
-      if (snap.exists() && snap.data().role === "admin") {
-        navigate("/admin");
-      } else if (snap.exists() && snap.data().role === "office_staff") {
+      if (snap.exists() && snap.data().role === "office_staff") {
         navigate("/office");
       } else {
-        // Sign out so the ghost session doesn't persist
         const { signOut } = await import("firebase/auth");
-        const { adminAuth } = await import("../../firebase");
-        await signOut(adminAuth);
+        const { officeAuth } = await import("../../firebase");
+        await signOut(officeAuth);
         setError(
-          `The Google account "${cred.user.email}" is not registered as an admin or office staff. ` +
-          `Ask an existing admin to add it first.`
+          `The Google account "${cred.user.email}" is not registered as office staff.`
         );
       }
     } catch (err) {
       if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
         setError("Sign-in was cancelled. Please try again.");
-      } else if (err.code === "auth/popup-blocked") {
-        setError("Popup was blocked by your browser. Please allow popups for this site.");
-      } else if (err.code === "auth/operation-not-allowed") {
-        setError("Google sign-in is not enabled. Enable it in Firebase Console → Authentication → Sign-in methods.");
       } else {
         setError(err.message || "Google sign-in failed. Please try again.");
       }
@@ -74,18 +71,17 @@ export default function AdminLogin() {
     }
   };
 
-
   return (
     <div className="login-page">
-      <div className="login-bg-blob" style={{ width: 500, height: 500, background: "#667eea", top: -150, left: -150 }} />
-      <div className="login-bg-blob" style={{ width: 350, height: 350, background: "#764ba2", bottom: -100, right: -80 }} />
+      <div className="login-bg-blob" style={{ width: 500, height: 500, background: "#f59e0b", top: -150, left: -150 }} />
+      <div className="login-bg-blob" style={{ width: 350, height: 350, background: "#d97706", bottom: -100, right: -80 }} />
 
       <div className="login-card">
         <Link to="/" className="back-link"><FaArrowLeft /> Back to Portal</Link>
         <div className="login-card-header">
-          <div className="login-card-icon">🛡️</div>
-          <h1>Admin / Office Portal</h1>
-          <p>Sign in with your admin or office staff credentials</p>
+          <div className="login-card-icon">🏢</div>
+          <h1>Office Staff Portal</h1>
+          <p>Sign in with your office staff credentials</p>
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
@@ -93,7 +89,14 @@ export default function AdminLogin() {
         <form onSubmit={handleLogin}>
           <div className="form-group">
             <label>Email Address</label>
-            <input className="form-control" type="email" placeholder="staff@school.edu" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input
+              className="form-control"
+              type="email"
+              placeholder="staff@school.edu"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+            />
           </div>
           <div className="form-group">
             <label>Password</label>
@@ -131,7 +134,7 @@ export default function AdminLogin() {
               </button>
             </div>
           </div>
-          <button className="btn btn-primary w-full btn-lg" type="submit" disabled={loading}>
+          <button className="btn btn-primary w-full btn-lg" type="submit" disabled={loading} style={{ background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", boxShadow: "0 4px 20px rgba(245, 158, 11, 0.3)" }}>
             {loading ? <span className="spinner" /> : "Sign In"}
           </button>
         </form>
@@ -142,28 +145,28 @@ export default function AdminLogin() {
           <FaGoogle /> Sign in with Google
         </button>
 
-        {/* Default Credentials hint */}
+        {/* Credentials fill helper */}
         <div style={{
           marginTop: 20, padding: "14px 16px",
-          background: "rgba(79,156,249,0.06)",
-          border: "1px solid rgba(79,156,249,0.18)",
+          background: "rgba(245, 158, 11, 0.06)",
+          border: "1px solid rgba(245, 158, 11, 0.18)",
           borderRadius: 10, fontSize: 13,
         }}>
-          <div style={{ fontWeight: 600, color: "var(--accent-blue)", marginBottom: 6 }}>
-            <FaUserShield style={{ marginRight: 6 }} />Default Admin Credentials
+          <div style={{ fontWeight: 600, color: "#f59e0b", marginBottom: 6 }}>
+            <FaUserTie style={{ marginRight: 6 }} />Office Staff (Kishore) Credentials
           </div>
           <div style={{ color: "var(--text-secondary)", marginBottom: 10, lineHeight: 1.6 }}>
-            📧 <code style={{ color: "var(--accent-orange)" }}>{DEFAULT_ADMIN_EMAIL}</code><br />
-            🔑 <code style={{ color: "var(--accent-orange)" }}>{DEFAULT_ADMIN_PASSWORD}</code>
+            📧 <code style={{ color: "var(--accent-orange)" }}>{DEFAULT_OFFICE_EMAIL}</code><br />
+            🔑 <code style={{ color: "var(--accent-orange)" }}>OfficePass123</code>
           </div>
           <button
             type="button"
             className="btn btn-primary w-full"
-            style={{ fontSize: 13, padding: "9px 16px" }}
-            onClick={() => { setEmail(DEFAULT_ADMIN_EMAIL); setPassword(DEFAULT_ADMIN_PASSWORD); }}
+            style={{ fontSize: 13, padding: "9px 16px", background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" }}
+            onClick={() => { setEmail(DEFAULT_OFFICE_EMAIL); setPassword("OfficePass123"); }}
             disabled={loading}
           >
-            ⚡ Fill Default Admin Credentials
+            ⚡ Fill Kishore's Credentials
           </button>
         </div>
       </div>

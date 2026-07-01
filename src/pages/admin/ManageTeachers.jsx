@@ -27,6 +27,9 @@ export default function ManageTeachers() {
   const [success, setSuccess] = useState("");
   const [resetStatus, setResetStatus] = useState({});
   const [revealedPwd, setRevealedPwd] = useState({});
+  const [searchFilter, setSearchFilter] = useState("");
+  const [deptFilterT, setDeptFilterT] = useState("");
+  const [yearFilterT, setYearFilterT] = useState("");
 
   const fetchTeachers = async () => {
     const snap = await getDocs(query(collection(db, "users"), where("role", "==", "teacher")));
@@ -121,6 +124,12 @@ export default function ManageTeachers() {
       setForm(prev => ({ ...prev, assignedClasses: prev.assignedClasses.filter(c => c !== clsString) }));
   };
 
+  const filteredTeachers = teachers.filter(t =>
+    (!searchFilter || t.name?.toLowerCase().includes(searchFilter.toLowerCase()) || t.email?.toLowerCase().includes(searchFilter.toLowerCase())) &&
+    (!deptFilterT || t.dept === deptFilterT) &&
+    (!yearFilterT || t.year === Number(yearFilterT))
+  );
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -135,6 +144,32 @@ export default function ManageTeachers() {
 
         {error && <div className="alert alert-error">{error}</div>}
         {success && <div className="alert alert-success">{success}</div>}
+
+        {/* Filters */}
+        {!showForm && (
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+            <input
+              className="form-control"
+              style={{ maxWidth: 260 }}
+              placeholder="Search by name or email..."
+              value={searchFilter}
+              onChange={e => setSearchFilter(e.target.value)}
+            />
+            <select className="form-control" style={{ maxWidth: 160 }} value={deptFilterT} onChange={e => setDeptFilterT(e.target.value)}>
+              <option value="">All Departments</option>
+              {DEPTS.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <select className="form-control" style={{ maxWidth: 130 }} value={yearFilterT} onChange={e => setYearFilterT(e.target.value)}>
+              <option value="">All Years</option>
+              {YEARS.map(y => <option key={y} value={y}>Year {y}</option>)}
+            </select>
+            {(searchFilter || deptFilterT || yearFilterT) && (
+              <span style={{ alignSelf: "center", fontSize: 12, color: "var(--text-muted)" }}>
+                {filteredTeachers.length} of {teachers.length} teachers
+              </span>
+            )}
+          </div>
+        )}
 
         {showForm && (
           <div className="glass-card" style={{ marginBottom: 24 }}>
@@ -242,9 +277,9 @@ export default function ManageTeachers() {
                 </tr>
               </thead>
               <tbody>
-                {teachers.length === 0 ? (
-                  <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px 0" }}>No teachers yet. Add one above.</td></tr>
-                ) : teachers.map(t => (
+                {filteredTeachers.length === 0 ? (
+                  <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px 0" }}>No teachers found.</td></tr>
+                ) : filteredTeachers.map(t => (
                   <tr key={t.id}>
                     <td style={{ fontWeight: 500 }}>{t.name || "—"}</td>
                     <td style={{ color: "var(--text-secondary)" }}>{t.email}</td>

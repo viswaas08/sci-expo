@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, collectionGroup, query, where, orderBy } from "firebase/firestore";
 import { db } from "../../firebase";
 import Sidebar from "../../components/Sidebar";
 import { useAuth } from "../../context/AuthContext";
@@ -25,30 +25,69 @@ export default function OfficeDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch all payment records
-        const paySnap = await getDocs(collection(db, "feePayments"));
-        let total = 0, paid = 0, pending = 0, overdue = 0;
+        // ── Use collectionGroup to query all nested semester payment docs ──
+        // This correctly reads feePayments/{uid}/semesters/{semKey} docs
+        const semSnap = await getDocs(collectionGroup(db, "semesters"));
+
+        let paid = 0, pending = 0, overdue = 0, total = 0;
         const deptMap = {};
         const allPayments = [];
+        const today = new Date();
 
-        paySnap.forEach(d => {
+        semSnap.forEach(d => {
           const data = d.data();
-          const amount = data.amount || 0;
-          total += amount;
+          // Only process docs that have the feePayments structure
+          if (!data.studentUid && !data.studentId) return;
+          const amount = parseFloat(data.amount) || 0;
+          const dept = data.dept || "Unknown";
+
+          if (!deptMap[dept]) deptMap[dept] = { collected: 0, pending: 0 };
+
+          if (data.status === "paid") {
+            paid += amount;
+            total += amount;
+            deptMap[dept].collected += amount;
+            allPayments.push({ id: d.id, ...data });
+          } else {
+            // Determine if overdue based on deadline
+            const deadline = data.deadline;
+            const isOverdue = deadline && new Date(deadline) < today;
+            if (isOverdue) {
+              overdue += amount;
+            } else {
+              pending += amount;
+            }
+            total += amount;
+            deptMap[dept].pending += amount;
+          }
+        });
+
+        // Also read flat feePayments docs (legacy format: {uid}_sem{n}) for backward compatibility
+        const flatSnap = await getDocs(collection(db, "feePayments"));
+        const seenIds = new Set(allPayments.map(p => p.studentUid + "_" + p.semester));
+
+        flatSnap.forEach(d => {
+          const data = d.data();
+          // Skip sub-collection parent docs (they have no amount/status)
+          if (!data.status || !data.amount) return;
+          // Skip if already counted via collectionGroup
+          const key = data.studentUid + "_" + data.semester;
+          if (seenIds.has(key)) return;
+
+          const amount = parseFloat(data.amount) || 0;
           const dept = data.dept || "Unknown";
           if (!deptMap[dept]) deptMap[dept] = { collected: 0, pending: 0 };
 
           if (data.status === "paid") {
             paid += amount;
+            total += amount;
             deptMap[dept].collected += amount;
-          } else if (data.status === "overdue") {
-            overdue += amount;
-            deptMap[dept].pending += amount;
+            allPayments.push({ id: d.id, ...data });
           } else {
             pending += amount;
+            total += amount;
             deptMap[dept].pending += amount;
           }
-          allPayments.push({ id: d.id, ...data });
         });
 
         setStats({ total, paid, pending, overdue });
@@ -61,7 +100,7 @@ export default function OfficeDashboard() {
           .slice(0, 8);
         setRecentPayments(paidList);
       } catch (e) {
-        console.error(e);
+        console.error("Dashboard fetch error:", e);
       }
       setLoading(false);
     };
@@ -125,18 +164,23 @@ export default function OfficeDashboard() {
 
               {/* Recent payments */}
               <div className="glass-card">
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Recent Payments</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>
+                  Recent Payments {recentPayments.length > 0 && <span className="badge badge-green" style={{ marginLeft: 8 }}>{recentPayments.length}</span>}
+                </h3>
                 {recentPayments.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {recentPayments.map(p => (
-                      <div key={p.id} style={{
+                    {recentPayments.map((p, idx) => (
+                      <div key={p.id || idx} style={{
                         display: "flex", justifyContent: "space-between", alignItems: "center",
                         padding: "10px 14px", background: "rgba(255,255,255,0.04)", borderRadius: 8,
                         border: "1px solid var(--border)"
                       }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 13 }}>{p.studentName || "Student"}</div>
-                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{p.dept} · Sem {p.semester} · {p.paidOn}</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                            {p.dept || "—"} · Sem {p.semester || "—"} · {p.paidOn || "—"}
+                            {p.method && <span style={{ marginLeft: 6, color: "var(--accent-blue)" }}>· {p.method}</span>}
+                          </div>
                         </div>
                         <div style={{ fontWeight: 700, color: "var(--accent-green)", fontSize: 14 }}>
                           ₹{(p.amount || 0).toLocaleString("en-IN")}
@@ -146,7 +190,9 @@ export default function OfficeDashboard() {
                   </div>
                 ) : (
                   <div style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: "48px 0" }}>
-                    No payments recorded yet
+                    <FaMoneyBillWave style={{ fontSize: 32, marginBottom: 12, opacity: 0.2 }} />
+                    <p>No payments recorded yet.</p>
+                    <p style={{ fontSize: 12, marginTop: 6 }}>Go to Student Fee Records to mark payments.</p>
                   </div>
                 )}
               </div>

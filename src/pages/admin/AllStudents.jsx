@@ -13,6 +13,8 @@ export default function AllStudents() {
   const [deptFilter, setDeptFilter]   = useState("");
   const [yearFilter, setYearFilter]   = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
+  const [admissionYearFilter, setAdmissionYearFilter] = useState("");
+  const ADMISSION_YEARS = [22, 23, 24, 25, 26, 27];
 
   // Per-row state helpers
   const [resetStatus, setResetStatus]   = useState({}); // { [uid]: "sending"|"sent"|"error" }
@@ -46,7 +48,8 @@ export default function AllStudents() {
     (!search       || s.name?.toLowerCase().includes(search.toLowerCase()) || s.rollNo?.includes(search)) &&
     (!deptFilter   || s.dept === deptFilter) &&
     (!yearFilter   || s.year === Number(yearFilter)) &&
-    (!sectionFilter || s.section === sectionFilter)
+    (!sectionFilter || s.section === sectionFilter) &&
+    (!admissionYearFilter || s.admissionYear === Number(admissionYearFilter))
   );
 
   // ── Password reset ──────────────────────────────────────────────
@@ -149,7 +152,7 @@ export default function AllStudents() {
         </div>
 
         {/* Filters */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
           <input className="form-control" style={{ maxWidth: 280 }} placeholder="Search by name or roll no..." value={search} onChange={e => setSearch(e.target.value)} />
           <select className="form-control" style={{ maxWidth: 180 }} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
             <option value="">All Departments</option>
@@ -163,7 +166,16 @@ export default function AllStudents() {
             <option value="">All Sections</option>
             {sections.map(s => <option key={s} value={s}>Section {s}</option>)}
           </select>
+          <select className="form-control" style={{ maxWidth: 170 }} value={admissionYearFilter} onChange={e => setAdmissionYearFilter(e.target.value)}>
+            <option value="">All Admission Years</option>
+            {ADMISSION_YEARS.map(y => <option key={y} value={y}>Joined 20{y} (Batch {y})</option>)}
+          </select>
         </div>
+        {admissionYearFilter && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16 }}>
+            📅 Showing students who joined in <strong>20{admissionYearFilter}</strong> · {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+          </div>
+        )}
 
         {loading ? (
           <div className="loading-center"><div className="spinner" /></div>

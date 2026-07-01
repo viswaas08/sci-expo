@@ -22,6 +22,9 @@ export default function ManageStudents() {
   const [parentForm, setParentForm] = useState(null); // { studentId, studentName }
   const [parentInfo, setParentInfo] = useState(null); // generated creds
   const [error, setError] = useState(""); const [success, setSuccess] = useState("");
+  // Filters
+  const [admissionYearFilter, setAdmissionYearFilter] = useState("");
+  const [deptFilter, setDeptFilter] = useState("");
 
   const fetchStudents = async () => {
     if (!userData) return;
@@ -144,6 +147,13 @@ export default function ManageStudents() {
     fetchStudents();
   };
 
+  // Filtered list
+  const filteredStudents = students.filter(s =>
+    (!admissionYearFilter || s.admissionYear === Number(admissionYearFilter)) &&
+    (!deptFilter || s.dept === deptFilter)
+  );
+  const allDepts = [...new Set(students.map(s => s.dept).filter(Boolean))];
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -154,6 +164,22 @@ export default function ManageStudents() {
             <p>{userData?.dept} · Year {userData?.year} · Section {userData?.section}</p>
           </div>
           <button className="btn btn-primary" onClick={() => setShowForm(true)}><FaPlus /> Add Student</button>
+        </div>
+        {/* Academic Year & Dept Filters */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+          <select className="form-control" style={{ maxWidth: 190 }} value={admissionYearFilter} onChange={e => setAdmissionYearFilter(e.target.value)}>
+            <option value="">All Admission Years</option>
+            {ADMISSION_YEARS.map(y => <option key={y} value={y}>Joined 20{y} (Batch {y})</option>)}
+          </select>
+          <select className="form-control" style={{ maxWidth: 160 }} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+            <option value="">All Departments</option>
+            {allDepts.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          {(admissionYearFilter || deptFilter) && (
+            <span style={{ alignSelf: "center", fontSize: 12, color: "var(--text-muted)" }}>
+              {filteredStudents.length} of {students.length} students
+            </span>
+          )}
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
@@ -223,14 +249,15 @@ export default function ManageStudents() {
         {loading ? <div className="loading-center"><div className="spinner" /></div> : (
           <div className="table-wrapper">
             <table>
-              <thead><tr><th>Name</th><th>Roll No</th><th>Email</th><th>Parent Linked</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Name</th><th>Roll No</th><th>Admission Year</th><th>Email</th><th>Parent Linked</th><th>Actions</th></tr></thead>
               <tbody>
-                {students.length === 0 ? (
-                  <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px 0" }}>No students yet.</td></tr>
-                ) : students.map(s => (
+                {filteredStudents.length === 0 ? (
+                  <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px 0" }}>No students found.</td></tr>
+                ) : filteredStudents.map(s => (
                   <tr key={s.id}>
                     <td style={{ fontWeight: 500 }}>{s.name}</td>
                     <td><span className="badge badge-blue">{s.rollNo}</span></td>
+                    <td><span className="badge badge-purple" style={{ fontSize: 12 }}>20{s.admissionYear || "—"}</span></td>
                     <td style={{ color: "var(--text-secondary)", fontSize: 13 }}>{s.email}</td>
                     <td>
                       {s.parentUid ? (

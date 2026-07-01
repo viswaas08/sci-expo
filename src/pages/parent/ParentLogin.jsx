@@ -3,13 +3,16 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
-import { FaArrowLeft } from "react-icons/fa";
+import { FaArrowLeft, FaEye, FaEyeSlash } from "react-icons/fa";
 
 export default function ParentLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [rollNo, setRollNo] = useState(""); const [password, setPassword] = useState("");
-  const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
+  const [rollNo, setRollNo] = useState(""); 
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState(""); 
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault(); setError(""); setLoading(true);
@@ -37,7 +40,42 @@ export default function ParentLogin() {
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={handleLogin}>
           <div className="form-group"><label>Student Roll Number</label><input className="form-control" type="text" placeholder="e.g. 24ECE1" value={rollNo} onChange={e => setRollNo(e.target.value)} required /></div>
-          <div className="form-group"><label>Password</label><input className="form-control" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required /></div>
+          <div className="form-group">
+            <label>Password</label>
+            <div style={{ position: "relative" }}>
+              <input
+                className="form-control"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                style={{ paddingRight: "44px" }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: "12px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "4px"
+                }}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
+          </div>
           <button className="btn btn-primary w-full btn-lg" type="submit" disabled={loading}>{loading ? <span className="spinner" /> : "Sign In as Parent"}</button>
         </form>
         <p style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "var(--text-muted)" }}>Credentials are auto-generated when your child is registered by the teacher.</p>

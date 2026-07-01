@@ -9,9 +9,8 @@ export default function ProtectedRoute({ children, allowedRole }) {
   }
 
   if (!currentUser) {
-    // Office staff share the admin login page
     if (allowedRole === "office_staff") {
-      return <Navigate to="/admin/login" replace />;
+      return <Navigate to="/office/login" replace />;
     }
     return <Navigate to={`/${allowedRole}/login`} replace />;
   }

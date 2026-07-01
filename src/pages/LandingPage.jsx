@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { FaUserShield, FaChalkboardTeacher, FaUserGraduate, FaUsers } from "react-icons/fa";
+import { FaUserShield, FaChalkboardTeacher, FaUserGraduate, FaUsers, FaUserTie } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 
 const portals = [
@@ -11,6 +11,15 @@ const portals = [
     gradient: "var(--grad-admin)",
     glow: "rgba(102,126,234,0.3)",
     link: "/admin/login",
+  },
+  {
+    role: "office_staff",
+    title: "Office Portal",
+    description: "Manage fee structures, tracking payment records and managing invoices.",
+    icon: <FaUserTie />,
+    gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+    glow: "rgba(245,158,11,0.3)",
+    link: "/office/login",
   },
   {
     role: "teacher",
@@ -40,6 +49,7 @@ const portals = [
     link: "/parent/login",
   },
 ];
+
 
 export default function LandingPage() {
   const { currentUser, userRole } = useAuth();

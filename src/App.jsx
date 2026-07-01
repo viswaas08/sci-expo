@@ -17,6 +17,7 @@ import AuditLog         from "./pages/admin/AuditLog";
 import ManageOfficeStaff from "./pages/admin/ManageOfficeStaff";
 
 // Office Staff
+import OfficeLogin         from "./pages/office/OfficeLogin";
 import OfficeDashboard     from "./pages/office/OfficeDashboard";
 import ManageFeeStructure  from "./pages/office/ManageFeeStructure";
 import StudentFeeRecords   from "./pages/office/StudentFeeRecords";
@@ -83,6 +84,7 @@ export default function App() {
             <Route path="/admin/audit"       element={P("admin", AuditLog)} />
 
             {/* ── Office Staff ───────────────────────────────────── */}
+            <Route path="/office/login"           element={<OfficeLogin />} />
             <Route path="/office"                 element={P("office_staff", OfficeDashboard)} />
             <Route path="/office/fee-structure"   element={P("office_staff", ManageFeeStructure)} />
             <Route path="/office/student-fees"    element={P("office_staff", StudentFeeRecords)} />
