@@ -85,6 +85,12 @@ export default function StudentFeeRecords() {
   const [saving, setSaving]               = useState(false);
   const [success, setSuccess]             = useState("");
 
+  // Category-wise payment states in manual mark paid form
+  const [payFormCategories, setPayFormCategories] = useState({});
+  const [newManualCategoryName, setNewManualCategoryName] = useState("");
+  const [newManualCategoryExpected, setNewManualCategoryExpected] = useState("");
+  const [newManualCategoryPaid, setNewManualCategoryPaid] = useState("");
+
   useEffect(() => {
     getDocs(collection(db, "departments")).then(snap =>
       setDepts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
@@ -211,17 +217,42 @@ export default function StudentFeeRecords() {
 
   // ── Open fee entry modal ──────────────────────────────────────────────────
   const openPayModal = (student, sem) => {
-    const key = sem ? `sem${sem.semester}` : null;
+    const key = sem ? `sem${sem.semester}` : `sem${payForm.semester || 1}`;
     const existingPay = key ? paymentMap[student.uid]?.[key] : null;
+    
+    // Build initial categories
+    const initialCats = {};
+    const defaultCats = ["Tuition Fees", "Hostel Fees", "Other Fees"];
+    const structCats = sem?.fees ? Object.keys(sem.fees) : defaultCats;
+    
+    structCats.forEach(cat => {
+      initialCats[cat] = {
+        expected: sem?.fees?.[cat] || 0,
+        paid: existingPay?.paidCategories?.[cat]?.amount || (existingPay?.status === "paid" ? sem?.fees?.[cat] || 0 : 0)
+      };
+    });
+
+    if (existingPay?.paidCategories) {
+      Object.entries(existingPay.paidCategories).forEach(([cat, val]) => {
+        if (!initialCats[cat]) {
+          initialCats[cat] = {
+            expected: val.amount || 0,
+            paid: val.amount || 0
+          };
+        }
+      });
+    }
+
     setSelected(student);
     setModalSem(sem || null);
+    setPayFormCategories(initialCats);
     setPayForm({
       amount:    existingPay?.amount    || sem?.amount || "",
       method:    existingPay?.method    || "Cash",
       receiptNo: existingPay?.receiptNo || "",
       paidOn:    existingPay?.paidOn    || new Date().toISOString().split("T")[0],
       notes:     existingPay?.notes     || "",
-      semester:  sem?.semester || "",
+      semester:  sem?.semester          || "",
     });
     setSuccess("");
   };
@@ -230,6 +261,12 @@ export default function StudentFeeRecords() {
   const openManualPayModal = (student) => {
     setSelected(student);
     setModalSem(null);
+    const initialCats = {
+      "Tuition Fees": { expected: 0, paid: 0 },
+      "Hostel Fees": { expected: 0, paid: 0 },
+      "Other Fees": { expected: 0, paid: 0 }
+    };
+    setPayFormCategories(initialCats);
     setPayForm({ amount: "", method: "Cash", receiptNo: "", paidOn: new Date().toISOString().split("T")[0], notes: "", semester: "" });
     setSuccess("");
   };
@@ -244,6 +281,26 @@ export default function StudentFeeRecords() {
     const sBatch = batches.find(b => b.joiningYear === parseInt(selected.admissionYear));
     const sBatchId = sBatch ? sBatch.id : `20${selected.admissionYear}-20${parseInt(selected.admissionYear) + 4}`;
 
+    // Build the paidCategories object for saving
+    const paidCategories = {};
+    Object.entries(payFormCategories).forEach(([cat, data]) => {
+      if (data.paid > 0) {
+        paidCategories[cat] = {
+          amount: parseFloat(data.paid) || 0,
+          paidOn: payForm.paidOn,
+          method: payForm.method,
+          receiptNo: payForm.receiptNo || ("RCP-" + Math.floor(100000 + Math.random() * 900000)),
+          status: "paid"
+        };
+      }
+    });
+
+    const allPaid = Object.entries(payFormCategories).every(([cat, data]) => {
+      return parseFloat(data.paid) >= parseFloat(data.expected);
+    });
+    const overallStatus = allPaid ? "paid" : "partial";
+    const totalPaid = Object.values(payFormCategories).reduce((sum, item) => sum + (parseFloat(item.paid) || 0), 0);
+
     const baseData = {
       studentUid:  selected.uid,
       studentName: selected.name || "",
@@ -254,23 +311,38 @@ export default function StudentFeeRecords() {
       batchId:     sBatchId,
       admissionYear: parseInt(selected.admissionYear) || 24,
       semester:    semNum,
-      amount:      parseFloat(payForm.amount) || 0,
+      amount:      totalPaid,
       method:      payForm.method,
-      receiptNo:   payForm.receiptNo,
+      receiptNo:   payForm.receiptNo || ("RCP-" + Math.floor(100000 + Math.random() * 900000)),
       paidOn:      payForm.paidOn,
       notes:       payForm.notes,
-      status:      "paid",
+      status:      overallStatus,
+      paidCategories,
       recordedAt:  new Date().toISOString(),
     };
+
     try {
       await setDoc(doc(db, "feePayments", selected.uid, "semesters", semKey), baseData, { merge: true });
       await setDoc(doc(db, "feePayments", `${selected.uid}_${semKey}`), baseData, { merge: true });
+      
       setSuccess(`✅ Payment recorded for ${selected.name} – Semester ${semNum}`);
-      await loadData();
+      
+      // Update local state map
+      setPaymentMap(prev => {
+        const studMap = prev[selected.uid] || {};
+        return {
+          ...prev,
+          [selected.uid]: {
+            ...studMap,
+            [semKey]: baseData
+          }
+        };
+      });
+
       setTimeout(() => { setSelected(null); setModalSem(null); setSuccess(""); }, 1400);
     } catch (err) {
       console.error(err);
-      setSuccess("❌ Error saving payment.");
+      setSuccess("❌ Error saving payment: " + err.message);
     }
     setSaving(false);
   };
@@ -737,7 +809,115 @@ export default function StudentFeeRecords() {
               )}
 
               <form onSubmit={handleMarkPaid}>
-                {/* Manual semester selector when no fee structure */}
+                {/* Category-wise Fee Inputs */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, display: "block" }}>Fee Category Breakdown</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, background: "rgba(255,255,255,0.02)", padding: 12, borderRadius: 8, border: "1px solid var(--border)" }}>
+                    {Object.entries(payFormCategories).map(([cat, data]) => (
+                      <div key={cat} style={{ display: "flex", flexDirection: "column", gap: 4, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.02)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontWeight: 600, fontSize: 12 }}>{cat}</span>
+                          {!["Tuition Fees", "Hostel Fees", "Other Fees"].includes(cat) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextCats = { ...payFormCategories };
+                                delete nextCats[cat];
+                                setPayFormCategories(nextCats);
+                              }}
+                              style={{ background: "none", border: "none", color: "var(--accent-red)", cursor: "pointer", fontSize: 10, padding: 0 }}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          <div>
+                            <label style={{ fontSize: 9, color: "var(--text-muted)" }}>Expected (₹)</label>
+                            <input
+                              className="form-control form-control-sm"
+                              type="number"
+                              value={data.expected}
+                              onChange={e => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setPayFormCategories({
+                                  ...payFormCategories,
+                                  [cat]: { ...data, expected: val }
+                                });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 9, color: "var(--text-muted)" }}>Paid (₹)</label>
+                            <input
+                              className="form-control form-control-sm"
+                              type="number"
+                              value={data.paid}
+                              onChange={e => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setPayFormCategories({
+                                  ...payFormCategories,
+                                  [cat]: { ...data, paid: val }
+                                });
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sub-form: Add Custom Fee inside Modal */}
+                <div style={{ background: "rgba(79,156,249,0.05)", border: "1px solid rgba(79,156,249,0.15)", padding: 12, borderRadius: 8, marginBottom: 16 }}>
+                  <label style={{ fontWeight: 700, fontSize: 12, display: "block", marginBottom: 8, color: "var(--accent-blue)" }}>
+                    ＋ Add Custom Fee to Semester
+                  </label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <input
+                      className="form-control form-control-sm"
+                      placeholder="Fee Name (e.g. Exam Fees)"
+                      value={newManualCategoryName}
+                      onChange={e => setNewManualCategoryName(e.target.value)}
+                    />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <input
+                        className="form-control form-control-sm"
+                        type="number"
+                        placeholder="Expected Amount"
+                        value={newManualCategoryExpected}
+                        onChange={e => setNewManualCategoryExpected(e.target.value)}
+                      />
+                      <input
+                        className="form-control form-control-sm"
+                        type="number"
+                        placeholder="Paid Amount"
+                        value={newManualCategoryPaid}
+                        onChange={e => setNewManualCategoryPaid(e.target.value)}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        if (!newManualCategoryName.trim()) return;
+                        const cat = newManualCategoryName.trim();
+                        const expected = parseFloat(newManualCategoryExpected) || 0;
+                        const paid = parseFloat(newManualCategoryPaid) || 0;
+                        setPayFormCategories({
+                          ...payFormCategories,
+                          [cat]: { expected, paid }
+                        });
+                        setNewManualCategoryName("");
+                        setNewManualCategoryExpected("");
+                        setNewManualCategoryPaid("");
+                      }}
+                    >
+                      Add Custom Fee
+                    </button>
+                  </div>
+                </div>
+
                 {!modalSem && (
                   <div className="form-group">
                     <label>Semester Number</label>

@@ -23,6 +23,7 @@ export default function ManageFeeStructure() {
   // Custom Category-wise fee configuration states
   const [feeCategories, setFeeCategories] = useState(["Tuition Fees", "Hostel Fees", "Other Fees"]);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [targetSemesterForCategory, setTargetSemesterForCategory] = useState("all");
 
   const [semesters, setSemesters] = useState(
     Array.from({ length: 8 }, (_, i) => ({
@@ -134,11 +135,26 @@ export default function ManageFeeStructure() {
     }
     const updatedCats = [...feeCategories, cat];
     setFeeCategories(updatedCats);
-    setSemesters(prev => prev.map(s => ({
-      ...s,
-      fees: { ...s.fees, [cat]: "" }
-    })));
+
+    if (targetSemesterForCategory === "all") {
+      setSemesters(prev => prev.map(s => ({
+        ...s,
+        fees: { ...s.fees, [cat]: "" }
+      })));
+    } else {
+      const targetSem = parseInt(targetSemesterForCategory);
+      setSemesters(prev => prev.map(s => {
+        if (s.sem === targetSem) {
+          return {
+            ...s,
+            fees: { ...s.fees, [cat]: "" }
+          };
+        }
+        return s;
+      }));
+    }
     setNewCategoryName("");
+    setTargetSemesterForCategory("all");
   };
 
   const handleRemoveCategory = (cat) => {
@@ -148,6 +164,18 @@ export default function ManageFeeStructure() {
       const nextFees = { ...s.fees };
       delete nextFees[cat];
       return { ...s, fees: nextFees };
+    }));
+  };
+
+  const handleRemoveCategoryFromSemester = (sem, cat) => {
+    if (["Tuition Fees", "Hostel Fees", "Other Fees"].includes(cat)) return;
+    setSemesters(prev => prev.map(s => {
+      if (s.sem === sem) {
+        const nextFees = { ...s.fees };
+        delete nextFees[cat];
+        return { ...s, fees: nextFees };
+      }
+      return s;
     }));
   };
 
@@ -456,6 +484,17 @@ export default function ManageFeeStructure() {
                       value={newCategoryName}
                       onChange={e => setNewCategoryName(e.target.value)}
                     />
+                    <select
+                      className="form-control"
+                      style={{ height: 38, width: 140, background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+                      value={targetSemesterForCategory}
+                      onChange={e => setTargetSemesterForCategory(e.target.value)}
+                    >
+                      <option value="all">All Semesters</option>
+                      {Array.from({ length: 8 }, (_, idx) => (
+                        <option key={idx + 1} value={idx + 1}>Semester {idx + 1}</option>
+                      ))}
+                    </select>
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -497,9 +536,20 @@ export default function ManageFeeStructure() {
                       </div>
 
                       {/* Inputs for each Category */}
-                      {feeCategories.map(cat => (
+                      {Object.keys(s.fees || {}).map(cat => (
                         <div key={cat} className="form-group" style={{ marginBottom: 12 }}>
-                          <label style={{ fontSize: 11 }}>{cat} Amount (₹)</label>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <label style={{ fontSize: 11, marginBottom: 4 }}>{cat} Amount (₹)</label>
+                            {!["Tuition Fees", "Hostel Fees", "Other Fees"].includes(cat) && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCategoryFromSemester(s.sem, cat)}
+                                style={{ background: "none", border: "none", color: "var(--accent-red)", cursor: "pointer", fontSize: 10, padding: 0 }}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
                           <input
                             className="form-control"
                             type="number"
