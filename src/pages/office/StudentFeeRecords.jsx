@@ -146,25 +146,29 @@ export default function StudentFeeRecords() {
       const studList = studSnap.docs.map(d => ({ uid: d.id, ...d.data() }));
       setStudents(studList);
 
-      // Fetch all fee structures in the system
+      // Fetch all fee structures in the system in parallel
       const fsSnap = await getDocs(collection(db, "feeStructures"));
       const structures = {};
-      for (const fsDoc of fsSnap.docs) {
-        const meta = fsDoc.data();
-        const semsSnap = await getDocs(collection(db, "feeStructures", fsDoc.id, "semesters"));
-        const sems = {};
-        semsSnap.forEach(s => { sems[s.id] = s.data(); });
-        structures[fsDoc.id] = { ...meta, sems };
-      }
+      await Promise.all(
+        fsSnap.docs.map(async (fsDoc) => {
+          const meta = fsDoc.data();
+          const semsSnap = await getDocs(collection(db, "feeStructures", fsDoc.id, "semesters"));
+          const sems = {};
+          semsSnap.forEach(s => { sems[s.id] = s.data(); });
+          structures[fsDoc.id] = { ...meta, sems };
+        })
+      );
       setAllFeeStructures(structures);
 
-      // Payment records for every student
+      // Payment records for every student in parallel
       const pMap = {};
-      for (const stud of studList) {
-        const paySnap = await getDocs(collection(db, "feePayments", stud.uid, "semesters"));
-        pMap[stud.uid] = {};
-        paySnap.forEach(d => { pMap[stud.uid][d.id] = d.data(); });
-      }
+      await Promise.all(
+        studList.map(async (stud) => {
+          const paySnap = await getDocs(collection(db, "feePayments", stud.uid, "semesters"));
+          pMap[stud.uid] = {};
+          paySnap.forEach(d => { pMap[stud.uid][d.id] = d.data(); });
+        })
+      );
       setPaymentMap(pMap);
     } catch (e) { console.error(e); }
     setLoading(false);
