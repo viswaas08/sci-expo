@@ -69,53 +69,58 @@ export default function StudentFeeRecords() {
       const snap = await getDoc(doc(db, "config", "batches"));
       if (snap.exists() && Array.isArray(snap.data().list)) {
         setBatches(snap.data().list);
-        if (snap.data().list.length > 0) {
-          setFilterBatchId(snap.data().list[0].id);
-        }
+        setFilterBatchId(""); // Default to All Batches
       } else {
         setBatches(DEFAULT_BATCHES);
-        setFilterBatchId(DEFAULT_BATCHES[0].id);
+        setFilterBatchId("");
       }
     } catch (e) {
       console.error(e);
       setBatches(DEFAULT_BATCHES);
-      setFilterBatchId(DEFAULT_BATCHES[0].id);
+      setFilterBatchId("");
     }
   };
 
-  // ── Load students + fee structure + payments ──────────────────────────────
+  const [allFeeStructures, setAllFeeStructures] = useState({});
+
+  // ── Load students + fee structures + payments ──────────────────────────────
   const loadData = useCallback(async () => {
-    if (!filterDept || !filterBatchId) return;
     setLoading(true);
     try {
-      const selectedBatch = batches.find(b => b.id === filterBatchId);
-      const joiningYear = selectedBatch ? selectedBatch.joiningYear : 24;
+      let q = collection(db, "users");
+      const constraints = [where("role", "==", "student")];
 
-      // Students (filter by admissionYear = joiningYear instead of current study year)
-      const q = query(
-        collection(db, "users"),
-        where("role", "==", "student"),
-        where("dept", "==", filterDept),
-        where("admissionYear", "==", parseInt(joiningYear)),
-        where("section", "==", filterSection),
-      );
-      const studSnap = await getDocs(q);
+      if (filterDept) {
+        constraints.push(where("dept", "==", filterDept));
+      }
+
+      if (filterBatchId) {
+        const selectedBatch = batches.find(b => b.id === filterBatchId);
+        const joiningYear = selectedBatch ? selectedBatch.joiningYear : 24;
+        constraints.push(where("admissionYear", "==", parseInt(joiningYear)));
+      }
+
+      if (filterSection) {
+        constraints.push(where("section", "==", filterSection));
+      }
+
+      const studSnap = await getDocs(query(q, ...constraints));
       const studList = studSnap.docs.map(d => ({ uid: d.id, ...d.data() }));
       setStudents(studList);
 
-      // Fee structure (optional – may not exist)
-      const key = `${filterDept}_B${filterBatchId}_${filterSection}`;
-      const fsMeta = await getDoc(doc(db, "feeStructures", key));
-      let structure = null;
-      if (fsMeta.exists()) {
-        const semsSnap = await getDocs(collection(db, "feeStructures", key, "semesters"));
+      // Fetch all fee structures in the system
+      const fsSnap = await getDocs(collection(db, "feeStructures"));
+      const structures = {};
+      for (const fsDoc of fsSnap.docs) {
+        const meta = fsDoc.data();
+        const semsSnap = await getDocs(collection(db, "feeStructures", fsDoc.id, "semesters"));
         const sems = {};
-        semsSnap.forEach(d => { sems[d.id] = d.data(); });
-        structure = { ...fsMeta.data(), sems };
+        semsSnap.forEach(s => { sems[s.id] = s.data(); });
+        structures[fsDoc.id] = { ...meta, sems };
       }
-      setFeeStructure(structure);
+      setAllFeeStructures(structures);
 
-      // Payment records for every student (works without fee structure)
+      // Payment records for every student
       const pMap = {};
       for (const stud of studList) {
         const paySnap = await getDocs(collection(db, "feePayments", stud.uid, "semesters"));
@@ -130,35 +135,35 @@ export default function StudentFeeRecords() {
   useEffect(() => { loadData(); }, [loadData]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  const getSemList = () =>
-    feeStructure
-      ? Object.values(feeStructure.sems).sort((a, b) => a.semester - b.semester)
-      : [];
-
   // Compute student summary from payment records
-  const getStudentSummary = (uid) => {
+  const getStudentSummary = (uid, student) => {
+    if (!student) return { paidAmount: 0, paidSems: 0, totalSems: 0, expectedTotal: 0, overdueCount: 0 };
     const payments = paymentMap[uid] || {};
     const payDocs = Object.values(payments);
     const paidDocs = payDocs.filter(p => p.status === "paid");
     const paidAmount = paidDocs.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
     const paidSems = paidDocs.length;
-    const totalSems = payDocs.length;
 
-    // If fee structure available also compute expected
-    const semList = getSemList();
+    // Resolve fee structure key for this student
+    const sBatch = batches.find(b => b.joiningYear === parseInt(student.admissionYear));
+    const sBatchId = sBatch ? sBatch.id : `20${student.admissionYear}-20${parseInt(student.admissionYear) + 4}`;
+    const key = `${student.dept}_B${sBatchId}_${student.section || "A"}`;
+    const fs = allFeeStructures[key] || allFeeStructures[`${student.dept}_B${sBatchId}_A` /* fallback A */];
+
+    const semsList = fs ? Object.values(fs.sems).sort((a, b) => a.semester - b.semester) : [];
     let expectedTotal = 0;
-    if (semList.length > 0) {
-      expectedTotal = semList.reduce((s, x) => s + (parseFloat(x.amount) || 0), 0);
+    if (semsList.length > 0) {
+      expectedTotal = semsList.reduce((s, x) => s + (parseFloat(x.amount) || 0), 0);
     } else {
-      // From payment docs themselves
       expectedTotal = payDocs.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
     }
-    const overdueCount = semList.filter(s => {
+
+    const overdueCount = semsList.filter(s => {
       const pay = payments[`sem${s.semester}`];
       return !pay && s.deadline && new Date(s.deadline) < new Date();
     }).length;
 
-    return { paidAmount, paidSems, totalSems, expectedTotal, overdueCount };
+    return { paidAmount, paidSems, totalSems: semsList.length || paidSems, expectedTotal, overdueCount };
   };
 
   // ── Open fee entry modal ──────────────────────────────────────────────────
@@ -223,7 +228,6 @@ export default function StudentFeeRecords() {
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const semList = getSemList();
   const filteredStudents = students.filter(s =>
     !searchText ||
     s.name?.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -233,7 +237,7 @@ export default function StudentFeeRecords() {
   // Summary stats for the filter
   const totalStudents = filteredStudents.length;
   const fullyPaid = filteredStudents.filter(s => {
-    const { paidSems, totalSems } = getStudentSummary(s.uid);
+    const { paidSems, totalSems } = getStudentSummary(s.uid, s);
     return totalSems > 0 && paidSems >= totalSems;
   }).length;
 
@@ -252,13 +256,14 @@ export default function StudentFeeRecords() {
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label><FaFilter style={{ marginRight: 6 }} />Department</label>
               <select className="form-control" value={filterDept} onChange={e => setFilterDept(e.target.value)}>
-                <option value="">-- Select --</option>
+                <option value="">All Departments</option>
                 {depts.map(d => <option key={d.id} value={d.name || d.id}>{d.name || d.id}</option>)}
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>Batch</label>
               <select className="form-control" value={filterBatchId} onChange={e => setFilterBatchId(e.target.value)}>
+                <option value="">All Batches</option>
                 {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
@@ -280,7 +285,7 @@ export default function StudentFeeRecords() {
           </div>
 
           {/* Summary bar */}
-          {filterDept && !loading && students.length > 0 && (
+          {!loading && students.length > 0 && (
             <div style={{ display: "flex", gap: 20, marginTop: 14, flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
                 👥 <strong style={{ color: "var(--text-color)" }}>{totalStudents}</strong> students
@@ -291,22 +296,12 @@ export default function StudentFeeRecords() {
               <span style={{ fontSize: 13, color: "var(--accent-orange)" }}>
                 ⏳ <strong>{totalStudents - fullyPaid}</strong> partial / unpaid
               </span>
-              {!feeStructure && (
-                <span style={{ fontSize: 12, color: "var(--accent-orange)", background: "rgba(251,146,60,0.1)", padding: "3px 10px", borderRadius: 20 }}>
-                  ⚠ No fee structure set — showing payment records only
-                </span>
-              )}
             </div>
           )}
         </div>
 
         {/* ── Main Table ── */}
-        {!filterDept ? (
-          <div className="glass-card" style={{ textAlign: "center", padding: "56px 24px", color: "var(--text-muted)" }}>
-            <FaSearch style={{ fontSize: 40, marginBottom: 16, opacity: 0.3 }} />
-            <p style={{ fontSize: 15 }}>Select a department to view student fee records.</p>
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="loading-center"><div className="spinner" /></div>
         ) : filteredStudents.length === 0 ? (
           <div className="glass-card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--text-muted)" }}>
@@ -315,7 +310,7 @@ export default function StudentFeeRecords() {
         ) : (
           <div className="glass-card">
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20 }}>
-              {filteredStudents.length} Students · {filterDept} · {batches.find(b => b.id === filterBatchId)?.name || filterBatchId} · Section {filterSection}
+              {filteredStudents.length} Students · {filterDept || "All Departments"} · {batches.find(b => b.id === filterBatchId)?.name || "All Batches"} · Section {filterSection}
             </h3>
             <div className="table-wrapper">
               <table>
@@ -333,7 +328,7 @@ export default function StudentFeeRecords() {
                 </thead>
                 <tbody>
                   {filteredStudents.map((stud, i) => {
-                    const { paidAmount, paidSems, totalSems, expectedTotal, overdueCount } = getStudentSummary(stud.uid);
+                    const { paidAmount, paidSems, totalSems, expectedTotal, overdueCount } = getStudentSummary(stud.uid, stud);
                     const balance = expectedTotal - paidAmount;
                     const allPaid = totalSems > 0 && paidSems >= totalSems;
                     const rowStatus = allPaid ? "paid" : overdueCount > 0 ? "overdue" : "pending";
@@ -421,7 +416,7 @@ export default function StudentFeeRecords() {
 
               {/* Summary boxes */}
               {(() => {
-                const { paidAmount, paidSems, totalSems, expectedTotal } = getStudentSummary(detailStudent.uid);
+                const { paidAmount, paidSems, totalSems, expectedTotal } = getStudentSummary(detailStudent.uid, detailStudent);
                 const balance = Math.max(0, expectedTotal - paidAmount);
                 return (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
