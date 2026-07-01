@@ -44,3 +44,7 @@ PROJECT CHANGES AND MODIFICATIONS LOG
 * Added a real-time Firestore database snapshot listener in FeeStatus.jsx to dynamically detect successful mobile UPI authorizations and update user balances instantly.
 * Registered the new "/payment-sim" route and student "/student/fees" route in App.jsx.
 * Registered the "Fee Status" navigation tab in the student sidebar.
+* Refactored Fee Configurator in ManageFeeStructure.jsx to support selecting a specific semester (or "All Semesters") to add custom fee categories, enabling semester-specific category listings.
+* Added a delete option next to each custom fee category input field in the semester cards to allow removing custom categories from individual semesters.
+* Updated manual payment entry modal in StudentFeeRecords.jsx to display a detailed inputs breakdown where expected and paid values can be recorded for each fee category.
+* Integrated a one-off manual custom fee addition form inside the manual payment recorder modal in StudentFeeRecords.jsx, permitting staff to add new custom categories and paid amounts for that semester.
