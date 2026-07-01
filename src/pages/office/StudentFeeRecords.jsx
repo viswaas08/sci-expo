@@ -7,7 +7,7 @@ import Sidebar from "../../components/Sidebar";
 import {
   FaSearch, FaCheckCircle, FaClock, FaExclamationCircle,
   FaTimes, FaSave, FaMoneyBillWave, FaEdit, FaFilter, FaUser,
-  FaInfoCircle,
+  FaInfoCircle, FaPrint, FaCog,
 } from "react-icons/fa";
 
 const PAYMENT_METHODS = ["Cash", "Cheque/DD", "Online Transfer", "UPI", "Card"];
@@ -34,6 +34,22 @@ const DEFAULT_BATCHES = [
   { id: "2026-2030", name: "Batch 2026-2030", joiningYear: 26 }
 ];
 
+function numberToWords(num) {
+  const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
+  const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+  if ((num = num.toString()).length > 9) return 'overflow';
+  let n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!n) return ''; 
+  let str = '';
+  str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'crore ' : '';
+  str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'lakh ' : '';
+  str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'thousand ' : '';
+  str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'hundred ' : '';
+  str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+  return str.trim() ? str.toUpperCase() + ' RUPEES ONLY' : 'ZERO RUPEES ONLY';
+}
+
 export default function StudentFeeRecords() {
   const [depts, setDepts]                 = useState([]);
   const [filterDept, setFilterDept]       = useState("");
@@ -50,6 +66,17 @@ export default function StudentFeeRecords() {
   // Detail modal (click student name)
   const [detailStudent, setDetailStudent] = useState(null);
 
+  // Receipt Layout Configuration
+  const [activeReceipt, setActiveReceipt] = useState(null);
+  const [showReceiptConfig, setShowReceiptConfig] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [receiptConfig, setReceiptConfig] = useState({
+    collegeName: "METROPOLITAN INSTITUTE OF TECHNOLOGY",
+    collegeSubtitle: "Approved by AICTE & Affiliated to State University",
+    collegeAddress: "123 Educational Campus, Knowledge City - 600001",
+    receiptFooter: "This is a computer-generated receipt and does not require a physical signature.",
+  });
+
   // Payment form modal (mark paid / edit)
   const [selected, setSelected]           = useState(null);
   const [modalSem, setModalSem]           = useState(null);
@@ -62,6 +89,17 @@ export default function StudentFeeRecords() {
       setDepts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     );
     loadBatches();
+    const loadReceiptConfig = async () => {
+      try {
+        const snap = await getDoc(doc(db, "config", "receipt"));
+        if (snap.exists()) {
+          setReceiptConfig(snap.data());
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    loadReceiptConfig();
   }, []);
 
   const loadBatches = async () => {
@@ -241,6 +279,25 @@ export default function StudentFeeRecords() {
     return totalSems > 0 && paidSems >= totalSems;
   }).length;
 
+  const handleSaveReceiptConfig = async (e) => {
+    e.preventDefault();
+    setSavingConfig(true);
+    try {
+      await setDoc(doc(db, "config", "receipt"), receiptConfig);
+      setShowReceiptConfig(false);
+    } catch (err) {
+      alert("Failed to save receipt template: " + err.message);
+    }
+    setSavingConfig(false);
+  };
+
+  const handlePrint = (student, sem, pay) => {
+    setActiveReceipt({ student, semester: sem, payment: pay });
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -282,20 +339,56 @@ export default function StudentFeeRecords() {
                 onChange={e => setSearchText(e.target.value)}
               />
             </div>
+            <div className="form-group" style={{ marginBottom: 0, display: "flex", alignItems: "flex-end" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ width: "100%", height: "45px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                onClick={() => setShowReceiptConfig(true)}
+              >
+                <FaCog /> Template Settings
+              </button>
+            </div>
           </div>
 
-          {/* Summary bar */}
+          {/* Financial Dues Summary Cards */}
           {!loading && students.length > 0 && (
-            <div style={{ display: "flex", gap: 20, marginTop: 14, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                👥 <strong style={{ color: "var(--text-color)" }}>{totalStudents}</strong> students
-              </span>
-              <span style={{ fontSize: 13, color: "var(--accent-green)" }}>
-                ✓ <strong>{fullyPaid}</strong> fully paid
-              </span>
-              <span style={{ fontSize: 13, color: "var(--accent-orange)" }}>
-                ⏳ <strong>{totalStudents - fullyPaid}</strong> partial / unpaid
-              </span>
+            <div style={{
+              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: 16, marginTop: 16, marginBottom: 16
+            }}>
+              {(() => {
+                let totalExpected = 0;
+                let totalPaid = 0;
+                students.forEach(s => {
+                  const summary = getStudentSummary(s.uid, s);
+                  totalExpected += summary.expectedTotal;
+                  totalPaid += summary.paidAmount;
+                });
+                const totalDues = Math.max(0, totalExpected - totalPaid);
+                return (
+                  <>
+                    <div style={{ background: "rgba(255,255,255,0.02)", padding: "16px", borderRadius: 12, border: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>Expected Collections</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "var(--accent-blue)", marginTop: 4 }}>₹{totalExpected.toLocaleString("en-IN")}</div>
+                    </div>
+                    <div style={{ background: "rgba(255,255,255,0.02)", padding: "16px", borderRadius: 12, border: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>Collected Amount</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "var(--accent-green)", marginTop: 4 }}>₹{totalPaid.toLocaleString("en-IN")}</div>
+                    </div>
+                    <div style={{ background: "rgba(248,113,113,0.04)", padding: "16px", borderRadius: 12, border: "1px solid rgba(248,113,113,0.2)" }}>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>Outstanding Dues</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "var(--accent-red)", marginTop: 4 }}>₹{totalDues.toLocaleString("en-IN")}</div>
+                    </div>
+                    <div style={{ background: "rgba(255,255,255,0.02)", padding: "16px", borderRadius: 12, border: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>Dues Clearance</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text-color)", marginTop: 4 }}>
+                        {totalExpected > 0 ? `${Math.round((totalPaid / totalExpected) * 100)}%` : "100%"}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -439,77 +532,119 @@ export default function StudentFeeRecords() {
                 Semester-wise Payment History
               </h4>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
-                {/* Render fee-structure semesters if available */}
-                {semList.length > 0 ? semList.map(s => {
-                  const pay = paymentMap[detailStudent.uid]?.[`sem${s.semester}`];
-                  const isOverdue = !pay && s.deadline && new Date(s.deadline) < new Date();
-                  const status = pay?.status === "paid" ? "paid" : isOverdue ? "overdue" : "pending";
-                  return (
-                    <div key={s.semester} style={{
-                      padding: "12px 14px", background: "rgba(255,255,255,0.04)",
-                      border: "1px solid var(--border)", borderRadius: 10,
-                    }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Semester {s.semester}</div>
-                      <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
-                        ₹{(s.amount || 0).toLocaleString("en-IN")}
-                      </div>
-                      {s.deadline && <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>Due: {s.deadline}</div>}
-                      <StatusBadge status={status} />
-                      {pay?.status === "paid" && (
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
-                          {pay.paidOn} · {pay.method}{pay.receiptNo ? ` · #${pay.receiptNo}` : ""}
-                        </div>
-                      )}
-                      <button
-                        className={`btn ${pay?.status === "paid" ? "btn-secondary" : "btn-primary"}`}
-                        style={{ padding: "5px 8px", fontSize: 11, marginTop: 8, width: "100%" }}
-                        onClick={() => { setDetailStudent(null); openPayModal(detailStudent, s); }}
-                      >
-                        {pay?.status === "paid" ? <><FaEdit /> Update</> : <><FaMoneyBillWave /> Mark Paid</>}
-                      </button>
-                    </div>
-                  );
-                }) : (
-                  /* No fee structure — show from raw payment docs */
-                  Object.entries(paymentMap[detailStudent.uid] || {}).length > 0 ? (
-                    Object.entries(paymentMap[detailStudent.uid] || {})
-                      .sort(([a], [b]) => parseInt(a.replace("sem","")) - parseInt(b.replace("sem","")))
-                      .map(([semKey, pay]) => (
-                        <div key={semKey} style={{
-                          padding: "12px 14px", background: "rgba(255,255,255,0.04)",
-                          border: "1px solid var(--border)", borderRadius: 10,
-                        }}>
-                          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
-                            Semester {pay.semester || semKey.replace("sem", "")}
+                {(() => {
+                  const sBatch = batches.find(b => b.joiningYear === parseInt(detailStudent.admissionYear));
+                  const sBatchId = sBatch ? sBatch.id : `20${detailStudent.admissionYear}-20${parseInt(detailStudent.admissionYear) + 4}`;
+                  const key = `${detailStudent.dept}_B${sBatchId}_${detailStudent.section || "A"}`;
+                  const fs = allFeeStructures[key] || allFeeStructures[`${detailStudent.dept}_B${sBatchId}_A` /* fallback A */];
+                  const studentSemList = fs ? Object.values(fs.sems).sort((a, b) => a.semester - b.semester) : [];
+
+                  return studentSemList.length > 0 ? studentSemList.map(s => {
+                    const pay = paymentMap[detailStudent.uid]?.[`sem${s.semester}`];
+                    const isOverdue = !pay && s.deadline && new Date(s.deadline) < new Date();
+                    const status = pay?.status === "paid" ? "paid" : isOverdue ? "overdue" : "pending";
+                    return (
+                      <div key={s.semester} style={{
+                        padding: "12px 14px", background: "rgba(255,255,255,0.04)",
+                        border: "1px solid var(--border)", borderRadius: 10,
+                        display: "flex", flexDirection: "column", justifyContent: "space-between"
+                      }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Semester {s.semester}</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+                            ₹{(s.amount || 0).toLocaleString("en-IN")}
                           </div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
-                            ₹{(pay.amount || 0).toLocaleString("en-IN")}
-                          </div>
-                          <StatusBadge status={pay.status || "pending"} />
-                          {pay.status === "paid" && (
-                            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
-                              {pay.paidOn} · {pay.method}{pay.receiptNo ? ` · #${pay.receiptNo}` : ""}
+                          {s.deadline && <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>Due: {s.deadline}</div>}
+                          <StatusBadge status={status} />
+                          {pay?.status === "paid" && (
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, lineHeight: "1.4" }}>
+                              Paid On: {pay.paidOn}<br />
+                              Method: {pay.method}<br />
+                              Receipt: {pay.receiptNo ? `#${pay.receiptNo}` : "—"}
                             </div>
                           )}
                         </div>
-                      ))
-                  ) : (
-                    <div style={{
-                      gridColumn: "1 / -1", textAlign: "center", padding: "32px 0",
-                      color: "var(--text-muted)", fontSize: 14,
-                    }}>
-                      <FaInfoCircle style={{ fontSize: 28, marginBottom: 10, opacity: 0.3 }} />
-                      <p>No payment records found for this student.</p>
-                      <button
-                        className="btn btn-primary"
-                        style={{ marginTop: 12 }}
-                        onClick={() => { setDetailStudent(null); openManualPayModal(detailStudent); }}
-                      >
-                        <FaMoneyBillWave style={{ marginRight: 6 }} />Add First Payment
-                      </button>
-                    </div>
-                  )
-                )}
+                        <div>
+                          {pay?.status === "paid" ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: "4px 8px", fontSize: 11, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+                                onClick={() => handlePrint(detailStudent, s, pay)}
+                              >
+                                <FaPrint /> Print Receipt
+                              </button>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: "4px 8px", fontSize: 11, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+                                onClick={() => { setDetailStudent(null); openPayModal(detailStudent, s); }}
+                              >
+                                <FaEdit /> Update Payment
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              style={{ padding: "5px 8px", fontSize: 11, marginTop: 8, width: "100%" }}
+                              onClick={() => { setDetailStudent(null); openPayModal(detailStudent, s); }}
+                            >
+                              <FaMoneyBillWave /> Mark Paid
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    /* No fee structure — show from raw payment docs */
+                    Object.entries(paymentMap[detailStudent.uid] || {}).length > 0 ? (
+                      Object.entries(paymentMap[detailStudent.uid] || {})
+                        .sort(([a], [b]) => parseInt(a.replace("sem","")) - parseInt(b.replace("sem","")))
+                        .map(([semKey, pay]) => (
+                          <div key={semKey} style={{
+                            padding: "12px 14px", background: "rgba(255,255,255,0.04)",
+                            border: "1px solid var(--border)", borderRadius: 10,
+                          }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+                              Semester {pay.semester || semKey.replace("sem", "")}
+                            </div>
+                            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
+                              ₹{(pay.amount || 0).toLocaleString("en-IN")}
+                            </div>
+                            <StatusBadge status={pay.status || "pending"} />
+                            {pay.status === "paid" && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                                  {pay.paidOn} · {pay.method}{pay.receiptNo ? ` · #${pay.receiptNo}` : ""}
+                                </div>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: "4px 8px", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+                                  onClick={() => handlePrint(detailStudent, { semester: pay.semester || semKey.replace("sem", "") }, pay)}
+                                >
+                                  <FaPrint /> Print Receipt
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                    ) : (
+                      <div style={{
+                        gridColumn: "1 / -1", textAlign: "center", padding: "32px 0",
+                        color: "var(--text-muted)", fontSize: 14,
+                      }}>
+                        <FaInfoCircle style={{ fontSize: 28, marginBottom: 10, opacity: 0.3 }} />
+                        <p>No payment records found for this student.</p>
+                        <button
+                          className="btn btn-primary"
+                          style={{ marginTop: 12 }}
+                          onClick={() => { setDetailStudent(null); openManualPayModal(detailStudent); }}
+                        >
+                          <FaMoneyBillWave style={{ marginRight: 6 }} />Add First Payment
+                        </button>
+                      </div>
+                    )
+                  );
+                })()}
               </div>
 
               {/* Footer action */}
@@ -629,7 +764,189 @@ export default function StudentFeeRecords() {
             </div>
           </div>
         )}
+
+        {/* Receipt Config Modal */}
+        {showReceiptConfig && (
+          <div className="modal-overlay" onClick={() => setShowReceiptConfig(false)}>
+            <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, width: "100%" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700 }}>⚙️ Configure Receipt Template</h3>
+                <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-secondary)" }} onClick={() => setShowReceiptConfig(false)}>
+                  <FaTimes />
+                </button>
+              </div>
+              <form onSubmit={handleSaveReceiptConfig}>
+                <div className="form-group">
+                  <label>College Name (Header 1)</label>
+                  <input
+                    className="form-control"
+                    value={receiptConfig.collegeName}
+                    onChange={e => setReceiptConfig(f => ({ ...f, collegeName: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Subtitle / Affiliation (Header 2)</label>
+                  <input
+                    className="form-control"
+                    value={receiptConfig.collegeSubtitle}
+                    onChange={e => setReceiptConfig(f => ({ ...f, collegeSubtitle: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Address details (Header 3)</label>
+                  <input
+                    className="form-control"
+                    value={receiptConfig.collegeAddress}
+                    onChange={e => setReceiptConfig(f => ({ ...f, collegeAddress: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Terms / Footer Note</label>
+                  <textarea
+                    className="form-control"
+                    rows="3"
+                    value={receiptConfig.receiptFooter}
+                    onChange={e => setReceiptConfig(f => ({ ...f, receiptFooter: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={savingConfig}>
+                    {savingConfig ? <span className="spinner" /> : <><FaSave style={{ marginRight: 6 }} />Save Settings</>}
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowReceiptConfig(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* Printable Area for Receipt */}
+      {activeReceipt && (
+        <div id="printable-receipt-area" style={{ display: "none" }}>
+          <div style={{
+            padding: "40px", fontFamily: "serif", color: "#000", background: "#fff",
+            border: "2px double #000", maxWidth: "800px", margin: "0 auto"
+          }}>
+            {/* Header / Letterhead */}
+            <div style={{ textAlign: "center", borderBottom: "3px double #000", paddingBottom: "15px", marginBottom: "20px" }}>
+              <h1 style={{ margin: "0 0 5px 0", fontSize: "24px", fontWeight: "bold" }}>{receiptConfig.collegeName}</h1>
+              <p style={{ margin: "0 0 5px 0", fontSize: "14px", fontStyle: "italic" }}>{receiptConfig.collegeSubtitle}</p>
+              <p style={{ margin: "0", fontSize: "12px" }}>{receiptConfig.collegeAddress}</p>
+            </div>
+
+            {/* Receipt Title */}
+            <div style={{ textAlign: "center", marginBottom: "25px" }}>
+              <h2 style={{ margin: "0", fontSize: "18px", textDecoration: "underline", fontWeight: "bold", letterSpacing: "1px" }}>FEES PAYMENT RECEIPT</h2>
+            </div>
+
+            {/* Receipt Meta Details */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", fontSize: "14px" }}>
+              <div>
+                <p style={{ margin: "0 0 6px 0" }}><strong>Receipt No:</strong> #{activeReceipt.payment.receiptNo || "N/A"}</p>
+                <p style={{ margin: "0" }}><strong>Payment Date:</strong> {activeReceipt.payment.paidOn}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ margin: "0 0 6px 0" }}><strong>Admission Year:</strong> 20{activeReceipt.student.admissionYear || "—"}</p>
+                <p style={{ margin: "0" }}><strong>Current Year of Study:</strong> Year {activeReceipt.student.year || 1}</p>
+              </div>
+            </div>
+
+            {/* Student Info Table */}
+            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "25px", fontSize: "14px" }}>
+              <tbody>
+                <tr style={{ borderBottom: "1px solid #ddd" }}>
+                  <td style={{ padding: "8px 0", width: "150px" }}><strong>Student Name:</strong></td>
+                  <td style={{ padding: "8px 0" }}>{activeReceipt.student.name}</td>
+                  <td style={{ padding: "8px 0", width: "120px" }}><strong>Roll Number:</strong></td>
+                  <td style={{ padding: "8px 0" }}><code>{activeReceipt.student.rollNo}</code></td>
+                </tr>
+                <tr style={{ borderBottom: "1px solid #ddd" }}>
+                  <td style={{ padding: "8px 0" }}><strong>Department:</strong></td>
+                  <td style={{ padding: "8px 0" }}>{activeReceipt.student.dept}</td>
+                  <td style={{ padding: "8px 0" }}><strong>Section:</strong></td>
+                  <td style={{ padding: "8px 0" }}>Section {activeReceipt.student.section || "A"}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Payment Details Table */}
+            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "25px", fontSize: "14px" }}>
+              <thead>
+                <tr style={{ background: "#f5f5f5" }}>
+                  <th style={{ padding: "10px", border: "1px solid #000", textAlign: "left" }}>Description</th>
+                  <th style={{ padding: "10px", border: "1px solid #000", textAlign: "center", width: "120px" }}>Semester</th>
+                  <th style={{ padding: "10px", border: "1px solid #000", textAlign: "right", width: "150px" }}>Amount Paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: "12px 10px", border: "1px solid #000" }}>
+                    <strong>Academic Fee Payment</strong><br />
+                    <span style={{ fontSize: "12px", color: "#555" }}>Mode of Payment: {activeReceipt.payment.method} {activeReceipt.payment.notes ? `(${activeReceipt.payment.notes})` : ""}</span>
+                  </td>
+                  <td style={{ padding: "12px 10px", border: "1px solid #000", textAlign: "center" }}>Semester {activeReceipt.semester.semester}</td>
+                  <td style={{ padding: "12px 10px", border: "1px solid #000", textAlign: "right", fontWeight: "bold" }}>₹{(activeReceipt.payment.amount || 0).toLocaleString("en-IN")}.00</td>
+                </tr>
+                <tr style={{ fontWeight: "bold" }}>
+                  <td colSpan="2" style={{ padding: "10px", border: "1px solid #000", textAlign: "right" }}>Total Amount:</td>
+                  <td style={{ padding: "10px", border: "1px solid #000", textAlign: "right" }}>₹{(activeReceipt.payment.amount || 0).toLocaleString("en-IN")}.00</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Amount in words */}
+            <div style={{ marginBottom: "40px", fontSize: "14px", border: "1px dashed #000", padding: "12px" }}>
+              <strong>Amount in Words:</strong> {numberToWords(activeReceipt.payment.amount || 0)}
+            </div>
+
+            {/* Signatures */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "60px", fontSize: "14px" }}>
+              <div style={{ textAlign: "center", width: "200px" }}>
+                <div style={{ borderTop: "1px solid #000", paddingTop: "5px" }}>Student Signature</div>
+              </div>
+              <div style={{ textAlign: "center", width: "200px" }}>
+                <div style={{ borderTop: "1px solid #000", paddingTop: "5px" }}>Authorized Signatory</div>
+              </div>
+            </div>
+
+            {/* Footer Notice */}
+            <div style={{ marginTop: "40px", borderTop: "1px solid #ddd", paddingTop: "10px", textAlign: "center", fontSize: "11px", color: "#666" }}>
+              {receiptConfig.receiptFooter}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Print CSS Style */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #printable-receipt-area, #printable-receipt-area * {
+            visibility: visible !important;
+          }
+          #printable-receipt-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            display: block !important;
+            background: white !important;
+          }
+          @page {
+            size: auto;
+            margin: 10mm 15mm;
+          }
+        }
+      `}</style>
     </div>
   );
 }

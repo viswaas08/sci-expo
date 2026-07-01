@@ -27,3 +27,7 @@ PROJECT CHANGES AND MODIFICATIONS LOG
 * Added an "All Departments" option to the Student Fee Records department dropdown to fetch student lists across all departments simultaneously.
 * Added an "All Batches" option to the Student Fee Records batch dropdown to query all student batches together.
 * Refactored Student Fee Records database queries and helper methods to load and compute summaries dynamically using student-specific batch and department configurations.
+* Added a dynamic financial statistics grid (Expected Collections, Collected Amount, Outstanding Dues, and Clearance Rate) in the Student Fee Records page to filter outstanding dues for specific departments, batches, and sections.
+* Integrated official college receipt template generation and printer layouts into the Student Fee Records semester history view, auto-filling student profile details (name, year, semester, section), payment info, and number-to-words parser.
+* Implemented a template configuration editor panel inside the Student Fee Records page, enabling college staff to edit letterhead details, subtitles, and footer terms with Firestore storage persistence.
+
