@@ -30,4 +30,8 @@ PROJECT CHANGES AND MODIFICATIONS LOG
 * Added a dynamic financial statistics grid (Expected Collections, Collected Amount, Outstanding Dues, and Clearance Rate) in the Student Fee Records page to filter outstanding dues for specific departments, batches, and sections.
 * Integrated official college receipt template generation and printer layouts into the Student Fee Records semester history view, auto-filling student profile details (name, year, semester, section), payment info, and number-to-words parser.
 * Implemented a template configuration editor panel inside the Student Fee Records page, enabling college staff to edit letterhead details, subtitles, and footer terms with Firestore storage persistence.
+* Updated the Student Detail Modal inside StudentFeeRecords.jsx to explicitly show the expected semester fee, actual paid amount, and outstanding pending balance for each individual semester.
+* Enhanced the Payment History dashboard (PaymentHistory.jsx) to include a Batch filter dropdown, a Batch column in the payment table, and support exporting the Batch ID in the CSV exporter.
+* Updated the payment transaction logger (StudentFeeRecords.jsx) to record the student's own department, section, batchId, and admissionYear on newly created payment records, ensuring database consistency.
+
 

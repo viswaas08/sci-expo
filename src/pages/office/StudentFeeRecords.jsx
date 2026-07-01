@@ -240,13 +240,18 @@ export default function StudentFeeRecords() {
     const semNum = modalSem ? modalSem.semester : parseInt(payForm.semester);
     if (!semNum) { setSaving(false); return; }
     const semKey = `sem${semNum}`;
+    const sBatch = batches.find(b => b.joiningYear === parseInt(selected.admissionYear));
+    const sBatchId = sBatch ? sBatch.id : `20${selected.admissionYear}-20${parseInt(selected.admissionYear) + 4}`;
+
     const baseData = {
       studentUid:  selected.uid,
       studentName: selected.name || "",
       rollNo:      selected.rollNo || "",
-      dept:        filterDept,
+      dept:        selected.dept || "",
       year:        parseInt(selected.year) || 1,
-      section:     filterSection,
+      section:     selected.section || "A",
+      batchId:     sBatchId,
+      admissionYear: parseInt(selected.admissionYear) || 24,
       semester:    semNum,
       amount:      parseFloat(payForm.amount) || 0,
       method:      payForm.method,
@@ -554,10 +559,23 @@ export default function StudentFeeRecords() {
                         display: "flex", flexDirection: "column", justifyContent: "space-between"
                       }}>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Semester {s.semester}</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
-                            ₹{(s.amount || 0).toLocaleString("en-IN")}
+                          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Semester {s.semester}</div>
+                          
+                          <div style={{ fontSize: 12, marginTop: 4, display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ color: "var(--text-muted)" }}>Fee:</span>
+                            <span style={{ fontWeight: 600 }}>₹{(s.amount || 0).toLocaleString("en-IN")}</span>
                           </div>
+                          <div style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ color: "var(--text-muted)" }}>Paid:</span>
+                            <span style={{ color: "var(--accent-green)", fontWeight: 600 }}>₹{pay?.status === "paid" ? (pay.amount || s.amount || 0).toLocaleString("en-IN") : "0"}</span>
+                          </div>
+                          <div style={{ fontSize: 12, marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ color: "var(--text-muted)" }}>Pending:</span>
+                            <span style={{ color: pay?.status === "paid" ? "var(--text-muted)" : "var(--accent-red)", fontWeight: 600 }}>
+                              ₹{pay?.status === "paid" ? "0" : (s.amount || 0).toLocaleString("en-IN")}
+                            </span>
+                          </div>
+
                           {s.deadline && <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>Due: {s.deadline}</div>}
                           <StatusBadge status={status} />
                           {pay?.status === "paid" && (
@@ -608,11 +626,16 @@ export default function StudentFeeRecords() {
                             padding: "12px 14px", background: "rgba(255,255,255,0.04)",
                             border: "1px solid var(--border)", borderRadius: 10,
                           }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
                               Semester {pay.semester || semKey.replace("sem", "")}
                             </div>
-                            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
-                              ₹{(pay.amount || 0).toLocaleString("en-IN")}
+                            <div style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
+                              <span style={{ color: "var(--text-muted)" }}>Paid:</span>
+                              <span style={{ color: "var(--accent-green)", fontWeight: 600 }}>₹{(pay.amount || 0).toLocaleString("en-IN")}</span>
+                            </div>
+                            <div style={{ fontSize: 12, marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                              <span style={{ color: "var(--text-muted)" }}>Pending:</span>
+                              <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>₹0</span>
                             </div>
                             <StatusBadge status={pay.status || "pending"} />
                             {pay.status === "paid" && (

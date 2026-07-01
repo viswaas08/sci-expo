@@ -1,8 +1,16 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, where, doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import Sidebar from "../../components/Sidebar";
 import { FaListAlt, FaSearch, FaFileDownload } from "react-icons/fa";
+
+const DEFAULT_BATCHES = [
+  { id: "2022-2026", name: "Batch 2022-2026", joiningYear: 22 },
+  { id: "2023-2027", name: "Batch 2023-2027", joiningYear: 23 },
+  { id: "2024-2028", name: "Batch 2024-2028", joiningYear: 24 },
+  { id: "2025-2029", name: "Batch 2025-2029", joiningYear: 25 },
+  { id: "2026-2030", name: "Batch 2026-2030", joiningYear: 26 }
+];
 
 export default function PaymentHistory() {
   const [payments, setPayments] = useState([]);
@@ -11,19 +19,51 @@ export default function PaymentHistory() {
   const [filterDept, setFilterDept] = useState("");
   const [filterYear, setFilterYear] = useState("");
   const [filterSection, setFilterSection] = useState("");
+  const [filterBatch, setFilterBatch] = useState("");
   const [depts, setDepts]       = useState([]);
+  const [batches, setBatches]   = useState([]);
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [paySnap, deptSnap] = await Promise.all([
+        const [paySnap, deptSnap, userSnap, batchSnap] = await Promise.all([
           getDocs(collection(db, "feePayments")),
           getDocs(collection(db, "departments")),
+          getDocs(query(collection(db, "users"), where("role", "==", "student"))),
+          getDoc(doc(db, "config", "batches")),
         ]);
+
+        let batchList = [];
+        if (batchSnap.exists() && Array.isArray(batchSnap.data().list)) {
+          batchList = batchSnap.data().list;
+        } else {
+          batchList = DEFAULT_BATCHES;
+        }
+        setBatches(batchList);
+
+        const userMap = {};
+        userSnap.forEach(d => { userMap[d.id] = d.data(); });
+
         const list = paySnap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
+          .map(d => {
+            const data = d.data();
+            const student = userMap[data.studentUid] || {};
+            // Resolve batch ID
+            let batchId = data.batchId;
+            if (!batchId && student.admissionYear) {
+              const sBatch = batchList.find(b => b.joiningYear === parseInt(student.admissionYear));
+              batchId = sBatch ? sBatch.id : `20${student.admissionYear}-20${parseInt(student.admissionYear) + 4}`;
+            }
+            return {
+              id: d.id,
+              ...data,
+              batchId: batchId || "—",
+              admissionYear: data.admissionYear || student.admissionYear || "—",
+            };
+          })
           .filter(p => p.status === "paid")
           .sort((a, b) => new Date(b.paidOn || b.recordedAt || 0) - new Date(a.paidOn || a.recordedAt || 0));
+        
         setPayments(list);
         setDepts(deptSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) { console.error(e); }
@@ -36,18 +76,19 @@ export default function PaymentHistory() {
     const matchDept    = !filterDept || p.dept === filterDept;
     const matchYear    = !filterYear || String(p.year) === String(filterYear);
     const matchSection = !filterSection || p.section === filterSection;
+    const matchBatch   = !filterBatch || p.batchId === filterBatch;
     const matchSearch  = !search ||
       (p.studentName || "").toLowerCase().includes(search.toLowerCase()) ||
       (p.receiptNo   || "").toLowerCase().includes(search.toLowerCase());
-    return matchDept && matchYear && matchSection && matchSearch;
+    return matchDept && matchYear && matchSection && matchBatch && matchSearch;
   });
 
   const totalCollected = filtered.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
 
   const downloadCSV = () => {
-    const headers = ["Student","Dept","Year","Section","Semester","Amount","Method","Receipt","Date"];
+    const headers = ["Student","Dept","Batch","Year","Section","Semester","Amount","Method","Receipt","Date"];
     const rows = filtered.map(p => [
-      p.studentName || "—", p.dept || "—", p.year || "—", p.section || "—", p.semester || "—",
+      p.studentName || "—", p.dept || "—", p.batchId || "—", p.year || "—", p.section || "—", p.semester || "—",
       p.amount || 0, p.method || "—", p.receiptNo || "—", p.paidOn || "—"
     ]);
     const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
@@ -93,6 +134,13 @@ export default function PaymentHistory() {
               {depts.map(d => <option key={d.id} value={d.name || d.id}>{d.name || d.id}</option>)}
             </select>
           </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: 150 }}>
+            <label style={{ fontSize: 13, marginBottom: 6, display: "block" }}>Batch</label>
+            <select className="form-control" value={filterBatch} onChange={e => setFilterBatch(e.target.value)}>
+              <option value="">All Batches</option>
+              {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
           <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: 120 }}>
             <label style={{ fontSize: 13, marginBottom: 6, display: "block" }}>Year</label>
             <select className="form-control" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
@@ -128,6 +176,7 @@ export default function PaymentHistory() {
                     <th>#</th>
                     <th>Student</th>
                     <th>Department</th>
+                    <th>Batch</th>
                     <th>Year</th>
                     <th>Section</th>
                     <th>Semester</th>
@@ -143,6 +192,7 @@ export default function PaymentHistory() {
                       <td style={{ color: "var(--text-muted)", fontSize: 13 }}>{i+1}</td>
                       <td style={{ fontWeight: 600 }}>{p.studentName || "—"}</td>
                       <td>{p.dept || "—"}</td>
+                      <td>{p.batchId || "—"}</td>
                       <td>Year {p.year || "—"}</td>
                       <td>Section {p.section || "—"}</td>
                       <td>Sem {p.semester || "—"}</td>
