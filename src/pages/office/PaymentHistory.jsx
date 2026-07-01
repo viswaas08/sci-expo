@@ -9,6 +9,8 @@ export default function PaymentHistory() {
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState("");
   const [filterDept, setFilterDept] = useState("");
+  const [filterYear, setFilterYear] = useState("");
+  const [filterSection, setFilterSection] = useState("");
   const [depts, setDepts]       = useState([]);
 
   useEffect(() => {
@@ -31,19 +33,21 @@ export default function PaymentHistory() {
   }, []);
 
   const filtered = payments.filter(p => {
-    const matchDept   = !filterDept || p.dept === filterDept;
-    const matchSearch = !search ||
+    const matchDept    = !filterDept || p.dept === filterDept;
+    const matchYear    = !filterYear || String(p.year) === String(filterYear);
+    const matchSection = !filterSection || p.section === filterSection;
+    const matchSearch  = !search ||
       (p.studentName || "").toLowerCase().includes(search.toLowerCase()) ||
       (p.receiptNo   || "").toLowerCase().includes(search.toLowerCase());
-    return matchDept && matchSearch;
+    return matchDept && matchYear && matchSection && matchSearch;
   });
 
   const totalCollected = filtered.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
 
   const downloadCSV = () => {
-    const headers = ["Student","Dept","Year","Semester","Amount","Method","Receipt","Date"];
+    const headers = ["Student","Dept","Year","Section","Semester","Amount","Method","Receipt","Date"];
     const rows = filtered.map(p => [
-      p.studentName || "—", p.dept || "—", p.year || "—", p.semester || "—",
+      p.studentName || "—", p.dept || "—", p.year || "—", p.section || "—", p.semester || "—",
       p.amount || 0, p.method || "—", p.receiptNo || "—", p.paidOn || "—"
     ]);
     const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
@@ -68,24 +72,42 @@ export default function PaymentHistory() {
         </div>
 
         {/* Filters */}
-        <div className="glass-card" style={{ marginBottom:24, display:"flex", gap:16, flexWrap:"wrap", alignItems:"center" }}>
-          <div style={{ flex:1, minWidth:200, position:"relative" }}>
-            <FaSearch style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--text-muted)", fontSize:14 }} />
-            <input
-              className="form-control"
-              style={{ paddingLeft:36 }}
-              placeholder="Search by student name or receipt..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+        <div className="glass-card" style={{ marginBottom: 24, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ flex: 1.5, minWidth: 200, position: "relative" }}>
+            <label style={{ fontSize: 13, marginBottom: 6, display: "block" }}>Search Student / Receipt</label>
+            <div style={{ position: "relative" }}>
+              <FaSearch style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 14 }} />
+              <input
+                className="form-control"
+                style={{ paddingLeft: 36 }}
+                placeholder="Search name or receipt..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="form-group" style={{ marginBottom:0, minWidth:180 }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: 150 }}>
+            <label style={{ fontSize: 13, marginBottom: 6, display: "block" }}>Department</label>
             <select className="form-control" value={filterDept} onChange={e => setFilterDept(e.target.value)}>
               <option value="">All Departments</option>
               {depts.map(d => <option key={d.id} value={d.name || d.id}>{d.name || d.id}</option>)}
             </select>
           </div>
-          <div style={{ fontWeight:700, color:"var(--accent-green)", whiteSpace:"nowrap" }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: 120 }}>
+            <label style={{ fontSize: 13, marginBottom: 6, display: "block" }}>Year</label>
+            <select className="form-control" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+              <option value="">All Years</option>
+              {["1", "2", "3", "4"].map(y => <option key={y} value={y}>Year {y}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: 120 }}>
+            <label style={{ fontSize: 13, marginBottom: 6, display: "block" }}>Section</label>
+            <select className="form-control" value={filterSection} onChange={e => setFilterSection(e.target.value)}>
+              <option value="">All Sections</option>
+              {["A", "B", "C", "D"].map(s => <option key={s} value={s}>Section {s}</option>)}
+            </select>
+          </div>
+          <div style={{ fontWeight: 700, color: "var(--accent-green)", whiteSpace: "nowrap", paddingBottom: 10 }}>
             Total: ₹{totalCollected.toLocaleString("en-IN")}
           </div>
         </div>
@@ -93,8 +115,8 @@ export default function PaymentHistory() {
         {loading ? (
           <div className="loading-center"><div className="spinner" /></div>
         ) : filtered.length === 0 ? (
-          <div className="glass-card" style={{ textAlign:"center", padding:"48px 24px", color:"var(--text-muted)" }}>
-            <FaListAlt style={{ fontSize:40, marginBottom:16, opacity:0.3 }} />
+          <div className="glass-card" style={{ textAlign: "center", padding: "48px 24px", color: "var(--text-muted)" }}>
+            <FaListAlt style={{ fontSize: 40, marginBottom: 16, opacity: 0.3 }} />
             <p>No payment records found.</p>
           </div>
         ) : (
@@ -107,6 +129,7 @@ export default function PaymentHistory() {
                     <th>Student</th>
                     <th>Department</th>
                     <th>Year</th>
+                    <th>Section</th>
                     <th>Semester</th>
                     <th>Amount</th>
                     <th>Method</th>
@@ -117,21 +140,22 @@ export default function PaymentHistory() {
                 <tbody>
                   {filtered.map((p, i) => (
                     <tr key={p.id}>
-                      <td style={{ color:"var(--text-muted)", fontSize:13 }}>{i+1}</td>
-                      <td style={{ fontWeight:600 }}>{p.studentName || "—"}</td>
+                      <td style={{ color: "var(--text-muted)", fontSize: 13 }}>{i+1}</td>
+                      <td style={{ fontWeight: 600 }}>{p.studentName || "—"}</td>
                       <td>{p.dept || "—"}</td>
                       <td>Year {p.year || "—"}</td>
+                      <td>Section {p.section || "—"}</td>
                       <td>Sem {p.semester || "—"}</td>
-                      <td style={{ color:"var(--accent-green)", fontWeight:700 }}>
+                      <td style={{ color: "var(--accent-green)", fontWeight: 700 }}>
                         ₹{(parseFloat(p.amount)||0).toLocaleString("en-IN")}
                       </td>
                       <td>
-                        <span className="badge badge-blue" style={{ fontSize:11 }}>{p.method || "—"}</span>
+                        <span className="badge badge-blue" style={{ fontSize: 11 }}>{p.method || "—"}</span>
                       </td>
-                      <td style={{ fontSize:12, color:"var(--text-muted)" }}>
+                      <td style={{ fontSize: 12, color: "var(--text-muted)" }}>
                         {p.receiptNo ? `#${p.receiptNo}` : "—"}
                       </td>
-                      <td style={{ fontSize:13, color:"var(--text-secondary)" }}>{p.paidOn || "—"}</td>
+                      <td style={{ fontSize: 13, color: "var(--text-secondary)" }}>{p.paidOn || "—"}</td>
                     </tr>
                   ))}
                 </tbody>

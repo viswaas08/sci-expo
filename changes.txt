@@ -18,3 +18,9 @@ PROJECT CHANGES AND MODIFICATIONS LOG
 * Adjusted student queries in StudentFeeRecords.jsx to look up student documents where the "admissionYear" matches the joining year of the selected batch.
 * Updated payment creation workflows in StudentFeeRecords.jsx to log the student's actual current study year (student.year) instead of the filter dropdown value.
 * Refactored Parent/Student Fee Status (FeeStatus.jsx) to dynamically resolve and retrieve the correct batch-wise fee structure key (dept_B{batchId}_{section}) using the logged-in student's "admissionYear" attribute.
+* Added dropdown filters for current Year and Section in the Payment History tab (PaymentHistory.jsx).
+* Added a new Section column to the Payment History data table and included it in the CSV export report.
+* Added a grid/table view toggle inside the Fee Deadlines manager (FeesDeadlines.jsx) to view entries in a card grid format or tabular layout.
+* Introduced search text indexing and dropdown parameters (Department, Batch, Section, and Custom Sorting) to filter and view fee deadlines with advanced customization.
+* Added support to edit both the Deadline Date and Fee Amount directly within the quick modal.
+* Implemented quick-extend snoozing actions (+7 days, +30 days) to adjust deadlines directly from the table or card grid views.
