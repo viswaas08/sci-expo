@@ -1,0 +1,20 @@
+PROJECT CHANGES AND MODIFICATIONS LOG
+====================================
+
+* Created a dedicated Office Staff login route and portal (OfficeLogin.jsx) to establish isolated auth instances (officeAuth) and avoid browser session conflicts.
+* Modified App.jsx and ProtectedRoute.jsx to register and secure the new "/office/login" path.
+* Integrated password visibility toggle buttons (FaEye / FaEyeSlash) inside the password fields of all login views:
+  - AdminLogin.jsx
+  - OfficeLogin.jsx
+  - TeacherLogin.jsx
+  - StudentLogin.jsx
+  - ParentLogin.jsx
+* Configured local workspace Git parameters matching the user's details and pushed the changes to the GitHub remote repository.
+* Replaced year-wise dropdown selectors (Year 1, Year 2, etc.) in the Office Fee Structure Setup (ManageFeeStructure.jsx) with a dynamic "Student Batch" selector.
+* Added a modal configuration utility in the Fee Structure setup page to add, delete, and list student batches.
+* Configured batch creation to lock program durations strictly to 4 years (8 semesters) and automatically construct the batch name (e.g. Batch 2025-2029) based on the user's input joining year.
+* Persisted the list of configured batches in the Firestore configuration path "/config/batches" (with default fallback items populated on first run).
+* Replaced the year filter dropdown in the Student Fee Records page (StudentFeeRecords.jsx) with the configurable Batch selector.
+* Adjusted student queries in StudentFeeRecords.jsx to look up student documents where the "admissionYear" matches the joining year of the selected batch.
+* Updated payment creation workflows in StudentFeeRecords.jsx to log the student's actual current study year (student.year) instead of the filter dropdown value.
+* Refactored Parent/Student Fee Status (FeeStatus.jsx) to dynamically resolve and retrieve the correct batch-wise fee structure key (dept_B{batchId}_{section}) using the logged-in student's "admissionYear" attribute.

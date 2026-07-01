@@ -1,19 +1,25 @@
 import { useState, useEffect } from "react";
 import {
-  collection, getDocs, doc, setDoc, deleteDoc, query, where,
+  collection, getDocs, doc, setDoc, deleteDoc, query, where, getDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 import Sidebar from "../../components/Sidebar";
-import { FaSave, FaLayerGroup, FaCalendarAlt, FaInfoCircle, FaEdit, FaTrash, FaSync } from "react-icons/fa";
+import { FaSave, FaLayerGroup, FaCalendarAlt, FaInfoCircle, FaEdit, FaTrash, FaSync, FaCog, FaPlus, FaTimes } from "react-icons/fa";
+
+const DEFAULT_BATCHES = [
+  { id: "2022-2026", name: "Batch 2022-2026", joiningYear: 22 },
+  { id: "2023-2027", name: "Batch 2023-2027", joiningYear: 23 },
+  { id: "2024-2028", name: "Batch 2024-2028", joiningYear: 24 },
+  { id: "2025-2029", name: "Batch 2025-2029", joiningYear: 25 },
+  { id: "2026-2030", name: "Batch 2026-2030", joiningYear: 26 }
+];
 
 export default function ManageFeeStructure() {
   const [depts, setDepts] = useState([]);
   const [selectedDept, setSelectedDept] = useState("");
-  const [selectedYear, setSelectedYear] = useState("1");
   const [selectedSection, setSelectedSection] = useState("A");
-  const [programType, setProgramType] = useState("4"); // 3 or 4 year
-  const [semCount, setSemCount] = useState(8);
-  const [semesters, setSemesters] = useState([]); // [{sem, amount, deadline}]
+  const semCount = 8; // Locked to 8 semesters (4 years)
+  const [semesters, setSemesters] = useState(Array.from({ length: 8 }, (_, i) => ({ sem: i + 1, amount: "", deadline: "" })));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
@@ -22,26 +28,98 @@ export default function ManageFeeStructure() {
   const [isEditMode, setIsEditMode] = useState(false); // true when existing data loaded
   const [existingStructureKey, setExistingStructureKey] = useState(null);
 
+  // Batch Configuration States
+  const [batches, setBatches] = useState([]);
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [newBatchJoiningYear, setNewBatchJoiningYear] = useState("");
+  const [batchError, setBatchError] = useState("");
+
   useEffect(() => {
     getDocs(collection(db, "departments")).then(snap => {
       setDepts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
+    loadBatches();
   }, []);
 
-  // When programType changes, reset semCount
-  useEffect(() => {
-    const count = parseInt(programType) * 2;
-    setSemCount(count);
-    setSemesters(Array.from({ length: count }, (_, i) => ({ sem: i + 1, amount: "", deadline: "" })));
-    setIsEditMode(false);
-  }, [programType]);
+  const loadBatches = async () => {
+    try {
+      const snap = await getDoc(doc(db, "config", "batches"));
+      if (snap.exists() && Array.isArray(snap.data().list)) {
+        const list = snap.data().list;
+        setBatches(list);
+        if (list.length > 0) {
+          setSelectedBatchId(list[0].id);
+        }
+      } else {
+        await setDoc(doc(db, "config", "batches"), { list: DEFAULT_BATCHES });
+        setBatches(DEFAULT_BATCHES);
+        setSelectedBatchId(DEFAULT_BATCHES[0].id);
+      }
+    } catch (e) {
+      console.error(e);
+      setBatches(DEFAULT_BATCHES);
+      setSelectedBatchId(DEFAULT_BATCHES[0].id);
+    }
+  };
 
-  // Reload structure when dept/year/section changes
+  const handleAddBatch = async (e) => {
+    e.preventDefault();
+    setBatchError("");
+    if (!newBatchJoiningYear.trim()) return;
+    const yearNum = parseInt(newBatchJoiningYear);
+    if (isNaN(yearNum)) {
+      setBatchError("Joining year must be a valid number (e.g. 25).");
+      return;
+    }
+
+    // Auto-calculate 4-year name: Batch 20XX-20YY where YY = XX + 4
+    const fullJoiningYear = yearNum < 100 ? 2000 + yearNum : yearNum;
+    const endYear = fullJoiningYear + 4;
+    const name = `Batch ${fullJoiningYear}-${endYear}`;
+    const id = `${fullJoiningYear}-${endYear}`;
+
+    if (batches.some(b => b.id === id)) {
+      setBatchError("A batch starting in this year already exists.");
+      return;
+    }
+
+    const updatedList = [...batches, {
+      id,
+      name,
+      joiningYear: yearNum % 100
+    }].sort((a, b) => b.joiningYear - a.joiningYear);
+
+    try {
+      await setDoc(doc(db, "config", "batches"), { list: updatedList });
+      setBatches(updatedList);
+      setNewBatchJoiningYear("");
+      if (!selectedBatchId) setSelectedBatchId(id);
+    } catch (err) {
+      setBatchError("Failed to save to database: " + err.message);
+    }
+  };
+
+  const handleDeleteBatch = async (id) => {
+    if (!confirm("Are you sure you want to delete this batch?")) return;
+    const updatedList = batches.filter(b => b.id !== id);
+    try {
+      await setDoc(doc(db, "config", "batches"), { list: updatedList });
+      setBatches(updatedList);
+      if (selectedBatchId === id && updatedList.length > 0) {
+        setSelectedBatchId(updatedList[0].id);
+      }
+    } catch (err) {
+      alert("Failed to delete batch: " + err.message);
+    }
+  };
+
+  // Reload structure when dept/batch/section changes
   useEffect(() => {
-    if (!selectedDept) return;
+    if (!selectedDept || !selectedBatchId) return;
     setLoading(true);
     setSuccess("");
-    const key = `${selectedDept}_Y${selectedYear}_${selectedSection}`;
+    const key = `${selectedDept}_B${selectedBatchId}_${selectedSection}`;
     getDocs(collection(db, "feeStructures", key, "semesters")).then(snap => {
       const existing = {};
       snap.forEach(d => { existing[d.id] = d.data(); });
@@ -55,7 +133,7 @@ export default function ManageFeeStructure() {
       })));
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [selectedDept, selectedYear, selectedSection, semCount]);
+  }, [selectedDept, selectedBatchId, selectedSection, semCount]);
 
   const updateSem = (sem, field, value) => {
     setSemesters(prev => prev.map(s => s.sem === sem ? { ...s, [field]: value } : s));
@@ -68,19 +146,19 @@ export default function ManageFeeStructure() {
   };
 
   const handleSave = async () => {
-    if (!selectedDept) { setSuccess(""); return; }
+    if (!selectedDept || !selectedBatchId) { setSuccess(""); return; }
     setSaving(true);
     setSuccess("");
     try {
       const keys = applyAll
-        ? sections.map(sec => `${selectedDept}_Y${selectedYear}_${sec}`)
-        : [`${selectedDept}_Y${selectedYear}_${selectedSection}`];
+        ? sections.map(sec => `${selectedDept}_B${selectedBatchId}_${sec}`)
+        : [`${selectedDept}_B${selectedBatchId}_${selectedSection}`];
 
       for (const key of keys) {
         // Save metadata doc
         await setDoc(doc(db, "feeStructures", key), {
           dept: selectedDept,
-          year: parseInt(selectedYear),
+          batchId: selectedBatchId,
           section: applyAll ? "ALL" : selectedSection,
           programYears: parseInt(programType),
           semesterCount: semCount,
@@ -96,17 +174,18 @@ export default function ManageFeeStructure() {
               deadline: s.deadline || "",
               key,
               dept: selectedDept,
-              year: parseInt(selectedYear),
+              batchId: selectedBatchId,
               updatedAt: new Date().toISOString(),
             });
           }
         }
       }
       setIsEditMode(true);
-      setExistingStructureKey(`${selectedDept}_Y${selectedYear}_${selectedSection}`);
+      setExistingStructureKey(`${selectedDept}_B${selectedBatchId}_${selectedSection}`);
+      const batchName = batches.find(b => b.id === selectedBatchId)?.name || selectedBatchId;
       setSuccess(applyAll
-        ? `✅ Fee structure ${isEditMode ? "updated" : "saved"} for all sections of Year ${selectedYear} – ${selectedDept}!`
-        : `✅ Fee structure ${isEditMode ? "updated" : "saved"} for ${selectedDept} – Year ${selectedYear} – Section ${selectedSection}!`
+        ? `✅ Fee structure ${isEditMode ? "updated" : "saved"} for all sections of ${batchName} – ${selectedDept}!`
+        : `✅ Fee structure ${isEditMode ? "updated" : "saved"} for ${selectedDept} – ${batchName} – Section ${selectedSection}!`
       );
     } catch (e) {
       console.error(e);
@@ -116,11 +195,11 @@ export default function ManageFeeStructure() {
   };
 
   const handleUpdateDeadlinesOnly = async () => {
-    if (!selectedDept) return;
+    if (!selectedDept || !selectedBatchId) return;
     setSaving(true);
     setSuccess("");
     try {
-      const key = `${selectedDept}_Y${selectedYear}_${selectedSection}`;
+      const key = `${selectedDept}_B${selectedBatchId}_${selectedSection}`;
       for (const s of semesters) {
         if (s.deadline) {
           await setDoc(doc(db, "feeStructures", key, "semesters", `sem${s.sem}`), {
@@ -129,7 +208,8 @@ export default function ManageFeeStructure() {
           }, { merge: true });
         }
       }
-      setSuccess(`✅ Due dates updated for ${selectedDept} – Year ${selectedYear} – Section ${selectedSection}!`);
+      const batchName = batches.find(b => b.id === selectedBatchId)?.name || selectedBatchId;
+      setSuccess(`✅ Due dates updated for ${selectedDept} – ${batchName} – Section ${selectedSection}!`);
     } catch (e) {
       console.error(e);
       setSuccess("❌ Error updating due dates.");
@@ -167,17 +247,23 @@ export default function ManageFeeStructure() {
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Program Duration</label>
-              <select className="form-control" value={programType} onChange={e => setProgramType(e.target.value)}>
-                <option value="3">3 Years (6 Semesters)</option>
-                <option value="4">4 Years (8 Semesters)</option>
-              </select>
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Year / Class</label>
-              <select className="form-control" value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>
-                {Array.from({ length: parseInt(programType) }, (_, i) => (
-                  <option key={i+1} value={i+1}>Year {i+1}</option>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label>Student Batch</label>
+                <button
+                  type="button"
+                  onClick={() => setShowBatchModal(true)}
+                  style={{
+                    background: "none", border: "none", color: "var(--accent-blue)",
+                    cursor: "pointer", fontSize: 11, fontWeight: 600, padding: 0,
+                    textDecoration: "underline"
+                  }}
+                >
+                  ⚙️ Manage Batches
+                </button>
+              </div>
+              <select className="form-control" value={selectedBatchId} onChange={e => setSelectedBatchId(e.target.value)}>
+                {batches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
             </div>
@@ -197,7 +283,7 @@ export default function ManageFeeStructure() {
               style={{ width: 16, height: 16, cursor: "pointer" }}
             />
             <label htmlFor="applyAll" style={{ cursor: "pointer", fontSize: 13, color: "var(--text-secondary)" }}>
-              Apply this fee structure to <strong>all sections</strong> of Year {selectedYear} – {selectedDept || "selected dept"}
+              Apply this fee structure to <strong>all sections</strong> of {batches.find(b => b.id === selectedBatchId)?.name || "selected batch"} – {selectedDept || "selected dept"}
             </label>
           </div>
         </div>
@@ -252,7 +338,7 @@ export default function ManageFeeStructure() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
                   <h3 style={{ fontSize: 15, fontWeight: 700 }}>
                     <FaCalendarAlt style={{ marginRight: 8 }} />
-                    {semCount} Semesters · {selectedDept} · Year {selectedYear}{!applyAll ? ` · Section ${selectedSection}` : " · All Sections"}
+                    {semCount} Semesters · {selectedDept} · {batches.find(b => b.id === selectedBatchId)?.name || selectedBatchId}{!applyAll ? ` · Section ${selectedSection}` : " · All Sections"}
                   </h3>
                   <div style={{ fontWeight: 700, color: "var(--accent-blue)", fontSize: 16 }}>
                     Total Annual: ₹{totalFees.toLocaleString("en-IN")}
@@ -328,6 +414,84 @@ export default function ManageFeeStructure() {
           <div className="glass-card" style={{ textAlign: "center", padding: "56px 24px", color: "var(--text-muted)" }}>
             <FaInfoCircle style={{ fontSize: 40, marginBottom: 16, opacity: 0.3 }} />
             <p style={{ fontSize: 15 }}>Select a department above to set up or update its fee structure.</p>
+          </div>
+        )}
+
+        {/* Batch Configuration Modal */}
+        {showBatchModal && (
+          <div className="modal-overlay" onClick={() => setShowBatchModal(false)}>
+            <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, width: "100%" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700 }}>⚙️ Configure Batches</h3>
+                <button
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", fontSize: 20 }}
+                  onClick={() => setShowBatchModal(false)}
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              {batchError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{batchError}</div>}
+
+              {/* Add New Batch Form */}
+              <form onSubmit={handleAddBatch} style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20, alignItems: "flex-end" }}>
+                <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
+                  <label>Joining Year (e.g., 25 for 2025)</label>
+                  <input
+                    className="form-control"
+                    placeholder="e.g. 25"
+                    type="number"
+                    value={newBatchJoiningYear}
+                    onChange={e => setNewBatchJoiningYear(e.target.value)}
+                    required
+                  />
+                </div>
+                {newBatchJoiningYear.trim() && !isNaN(parseInt(newBatchJoiningYear)) && (
+                  <div style={{ fontSize: 13, color: "var(--accent-blue)", fontWeight: 600, paddingBottom: 12, flex: "1 1 100%" }}>
+                    Preview: Batch 20{newBatchJoiningYear.trim().padStart(2, "0")}-20{(parseInt(newBatchJoiningYear) + 4).toString().padStart(2, "0")} (4 Years)
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ height: 45, padding: "0 16px" }}
+                >
+                  <FaPlus style={{ marginRight: 6 }} /> Add 4-Year Batch
+                </button>
+              </form>
+
+              {/* Batch list */}
+              <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "var(--text-secondary)" }}>Active Batches</h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto", paddingRight: 6 }}>
+                {batches.map(b => (
+                  <div
+                    key={b.id}
+                    style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "10px 14px", background: "rgba(255, 255, 255, 0.04)",
+                      border: "1px solid var(--border)", borderRadius: 8
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{b.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Linked joining year: 20{b.joiningYear}</div>
+                    </div>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      style={{ padding: "6px 8px" }}
+                      onClick={() => handleDeleteBatch(b.id)}
+                      title="Delete Batch"
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end" }}>
+                <button className="btn btn-secondary" onClick={() => setShowBatchModal(false)}>Close</button>
+              </div>
+            </div>
           </div>
         )}
       </main>

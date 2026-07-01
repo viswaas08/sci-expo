@@ -46,20 +46,46 @@ export default function FeeStatus() {
         }
 
         const dept    = studentData.dept;
-        const year    = studentData.year;
+        const admissionYear = studentData.admissionYear;
         const section = studentData.section || "A";
 
-        if (!dept || !year) {
-          setError("Student department or year information is missing. Contact the office.");
+        if (!dept || !admissionYear) {
+          setError("Student department or admission year information is missing. Contact the office.");
           setLoading(false);
           return;
         }
 
+        // Fetch batches config to link the student
+        let matchedBatchId = "";
+        try {
+          const configSnap = await getDoc(doc(db, "config", "batches"));
+          const DEFAULT_BATCHES = [
+            { id: "2022-2026", name: "Batch 2022-2026", joiningYear: 22 },
+            { id: "2023-2027", name: "Batch 2023-2027", joiningYear: 23 },
+            { id: "2024-2028", name: "Batch 2024-2028", joiningYear: 24 },
+            { id: "2025-2029", name: "Batch 2025-2029", joiningYear: 25 },
+            { id: "2026-2030", name: "Batch 2026-2030", joiningYear: 26 }
+          ];
+          const batchList = (configSnap.exists() && Array.isArray(configSnap.data().list))
+            ? configSnap.data().list
+            : DEFAULT_BATCHES;
+          const match = batchList.find(b => b.joiningYear === parseInt(admissionYear));
+          if (match) {
+            matchedBatchId = match.id;
+          } else {
+            // fallback construct
+            matchedBatchId = `20${admissionYear}-20${parseInt(admissionYear) + 4}`;
+          }
+        } catch (e) {
+          console.error(e);
+          matchedBatchId = `20${admissionYear}-20${parseInt(admissionYear) + 4}`;
+        }
+
         // Fetch fee structure (try exact section, fallback to A)
-        let structureKey = `${dept}_Y${year}_${section}`;
+        let structureKey = `${dept}_B${matchedBatchId}_${section}`;
         let fsMeta = await getDoc(doc(db, "feeStructures", structureKey));
         if (!fsMeta.exists()) {
-          structureKey = `${dept}_Y${year}_A`;
+          structureKey = `${dept}_B${matchedBatchId}_A`;
           fsMeta = await getDoc(doc(db, "feeStructures", structureKey));
         }
 

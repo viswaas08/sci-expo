@@ -26,13 +26,22 @@ function StatusBadge({ status }) {
   );
 }
 
+const DEFAULT_BATCHES = [
+  { id: "2022-2026", name: "Batch 2022-2026", joiningYear: 22 },
+  { id: "2023-2027", name: "Batch 2023-2027", joiningYear: 23 },
+  { id: "2024-2028", name: "Batch 2024-2028", joiningYear: 24 },
+  { id: "2025-2029", name: "Batch 2025-2029", joiningYear: 25 },
+  { id: "2026-2030", name: "Batch 2026-2030", joiningYear: 26 }
+];
+
 export default function StudentFeeRecords() {
   const [depts, setDepts]                 = useState([]);
   const [filterDept, setFilterDept]       = useState("");
-  const [filterYear, setFilterYear]       = useState("1");
+  const [filterBatchId, setFilterBatchId] = useState("");
   const [filterSection, setFilterSection] = useState("A");
   const [searchText, setSearchText]       = useState("");
 
+  const [batches, setBatches]             = useState([]);
   const [students, setStudents]           = useState([]);
   const [feeStructure, setFeeStructure]   = useState(null); // may be null
   const [paymentMap, setPaymentMap]       = useState({});   // uid → { semKey: payDoc }
@@ -52,19 +61,42 @@ export default function StudentFeeRecords() {
     getDocs(collection(db, "departments")).then(snap =>
       setDepts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     );
+    loadBatches();
   }, []);
+
+  const loadBatches = async () => {
+    try {
+      const snap = await getDoc(doc(db, "config", "batches"));
+      if (snap.exists() && Array.isArray(snap.data().list)) {
+        setBatches(snap.data().list);
+        if (snap.data().list.length > 0) {
+          setFilterBatchId(snap.data().list[0].id);
+        }
+      } else {
+        setBatches(DEFAULT_BATCHES);
+        setFilterBatchId(DEFAULT_BATCHES[0].id);
+      }
+    } catch (e) {
+      console.error(e);
+      setBatches(DEFAULT_BATCHES);
+      setFilterBatchId(DEFAULT_BATCHES[0].id);
+    }
+  };
 
   // ── Load students + fee structure + payments ──────────────────────────────
   const loadData = useCallback(async () => {
-    if (!filterDept) return;
+    if (!filterDept || !filterBatchId) return;
     setLoading(true);
     try {
-      // Students (no fee structure required)
+      const selectedBatch = batches.find(b => b.id === filterBatchId);
+      const joiningYear = selectedBatch ? selectedBatch.joiningYear : 24;
+
+      // Students (filter by admissionYear = joiningYear instead of current study year)
       const q = query(
         collection(db, "users"),
         where("role", "==", "student"),
         where("dept", "==", filterDept),
-        where("year", "==", parseInt(filterYear)),
+        where("admissionYear", "==", parseInt(joiningYear)),
         where("section", "==", filterSection),
       );
       const studSnap = await getDocs(q);
@@ -72,7 +104,7 @@ export default function StudentFeeRecords() {
       setStudents(studList);
 
       // Fee structure (optional – may not exist)
-      const key = `${filterDept}_Y${filterYear}_${filterSection}`;
+      const key = `${filterDept}_B${filterBatchId}_${filterSection}`;
       const fsMeta = await getDoc(doc(db, "feeStructures", key));
       let structure = null;
       if (fsMeta.exists()) {
@@ -93,7 +125,7 @@ export default function StudentFeeRecords() {
       setPaymentMap(pMap);
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [filterDept, filterYear, filterSection]);
+  }, [filterDept, filterBatchId, filterSection, batches]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -166,7 +198,7 @@ export default function StudentFeeRecords() {
       studentName: selected.name || "",
       rollNo:      selected.rollNo || "",
       dept:        filterDept,
-      year:        parseInt(filterYear),
+      year:        parseInt(selected.year) || 1,
       section:     filterSection,
       semester:    semNum,
       amount:      parseFloat(payForm.amount) || 0,
@@ -225,9 +257,9 @@ export default function StudentFeeRecords() {
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Year</label>
-              <select className="form-control" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
-                {["1","2","3","4"].map(y => <option key={y} value={y}>Year {y}</option>)}
+              <label>Batch</label>
+              <select className="form-control" value={filterBatchId} onChange={e => setFilterBatchId(e.target.value)}>
+                {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -283,7 +315,7 @@ export default function StudentFeeRecords() {
         ) : (
           <div className="glass-card">
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20 }}>
-              {filteredStudents.length} Students · {filterDept} · Year {filterYear} · Section {filterSection}
+              {filteredStudents.length} Students · {filterDept} · {batches.find(b => b.id === filterBatchId)?.name || filterBatchId} · Section {filterSection}
             </h3>
             <div className="table-wrapper">
               <table>
@@ -376,7 +408,7 @@ export default function StudentFeeRecords() {
                 <div>
                   <h3 style={{ fontSize: 20, fontWeight: 700 }}>{detailStudent.name}</h3>
                   <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-                    <code>{detailStudent.rollNo}</code> · {filterDept} · Year {filterYear} · Section {filterSection}
+                    <code>{detailStudent.rollNo}</code> · {filterDept} · Year {detailStudent.year || 1} · Section {filterSection}
                   </p>
                 </div>
                 <button
