@@ -57,6 +57,7 @@ import Timetable      from "./pages/shared/Timetable";
 import Assignments    from "./pages/shared/Assignments";
 import LeaveRequests  from "./pages/shared/LeaveRequests";
 import Chat           from "./pages/shared/Chat";
+import PaymentSimulator from "./pages/shared/PaymentSimulator";
 
 import "./index.css";
 
@@ -116,6 +117,7 @@ export default function App() {
             <Route path="/student/heatmap"   element={P("student", AttendanceHeatmap)} />
             <Route path="/student/badges"    element={P("student", AchievementBadges)} />
             <Route path="/student/report"    element={P("student", ReportCard)} />
+            <Route path="/student/fees"      element={P("student", FeeStatus)} />
 
             {/* ── Parent ────────────────────────────────────────── */}
             <Route path="/parent/login"      element={<ParentLogin />} />
@@ -126,6 +128,9 @@ export default function App() {
             <Route path="/parent/leave"      element={P("parent", LeaveRequests)} />
             <Route path="/parent/fees"       element={P("parent", FeeStatus)} />
             <Route path="/parent/chat"       element={P("parent", Chat)} />
+
+            {/* Public Simulator */}
+            <Route path="/payment-sim"       element={<PaymentSimulator />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

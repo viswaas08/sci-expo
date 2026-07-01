@@ -50,6 +50,7 @@ const studentNav = [
   { label: "Badges",       icon: <FaAward />,            to: "/student/badges" },
   { label: "Report Card",  icon: <FaFilePdf />,          to: "/student/report" },
   { label: "Portfolio",    icon: <FaUserGraduate />,     to: "/student/portfolio" },
+  { label: "Fee Status",   icon: <FaMoneyBill />,        to: "/student/fees" },
   { label: "Settings",     icon: <FaCog />,              to: "/student/settings" },
 ];
 

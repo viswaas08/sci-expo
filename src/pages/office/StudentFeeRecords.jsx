@@ -17,6 +17,7 @@ function StatusBadge({ status }) {
     paid:    { cls: "badge-green",  label: "✓ Paid",  icon: <FaCheckCircle /> },
     pending: { cls: "badge-yellow", label: "Pending", icon: <FaClock /> },
     overdue: { cls: "badge-red",    label: "Overdue", icon: <FaExclamationCircle /> },
+    partial: { cls: "badge-yellow", label: "⏳ Partial", icon: <FaClock /> },
   };
   const s = map[status] || map.pending;
   return (
@@ -550,8 +551,20 @@ export default function StudentFeeRecords() {
 
                   return studentSemList.length > 0 ? studentSemList.map(s => {
                     const pay = paymentMap[detailStudent.uid]?.[`sem${s.semester}`];
-                    const isOverdue = !pay && s.deadline && new Date(s.deadline) < new Date();
-                    const status = pay?.status === "paid" ? "paid" : isOverdue ? "overdue" : "pending";
+                    const cats = Object.entries(s.fees || {});
+                    const paidCats = pay?.paidCategories || {};
+
+                    let status = "pending";
+                    if (pay?.status === "paid") {
+                      status = "paid";
+                    } else if (Object.keys(paidCats).length > 0) {
+                      const allPaid = cats.every(([catName]) => paidCats[catName]?.status === "paid");
+                      status = allPaid ? "paid" : "partial";
+                    } else {
+                      const isOverdue = s.deadline && new Date(s.deadline) < new Date();
+                      status = isOverdue ? "overdue" : "pending";
+                    }
+
                     return (
                       <div key={s.semester} style={{
                         padding: "12px 14px", background: "rgba(255,255,255,0.04)",
@@ -559,25 +572,35 @@ export default function StudentFeeRecords() {
                         display: "flex", flexDirection: "column", justifyContent: "space-between"
                       }}>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Semester {s.semester}</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>Semester {s.semester}</div>
+                            <StatusBadge status={status} />
+                          </div>
                           
-                          <div style={{ fontSize: 12, marginTop: 4, display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ color: "var(--text-muted)" }}>Fee:</span>
-                            <span style={{ fontWeight: 600 }}>₹{(s.amount || 0).toLocaleString("en-IN")}</span>
-                          </div>
-                          <div style={{ fontSize: 12, display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ color: "var(--text-muted)" }}>Paid:</span>
-                            <span style={{ color: "var(--accent-green)", fontWeight: 600 }}>₹{pay?.status === "paid" ? (pay.amount || s.amount || 0).toLocaleString("en-IN") : "0"}</span>
-                          </div>
-                          <div style={{ fontSize: 12, marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ color: "var(--text-muted)" }}>Pending:</span>
-                            <span style={{ color: pay?.status === "paid" ? "var(--text-muted)" : "var(--accent-red)", fontWeight: 600 }}>
-                              ₹{pay?.status === "paid" ? "0" : (s.amount || 0).toLocaleString("en-IN")}
-                            </span>
+                          {/* Categories Breakdown */}
+                          <div style={{ borderBottom: "1px solid var(--border)", paddingBottom: 6, marginBottom: 8 }}>
+                            {cats.map(([catName, expectedAmount]) => {
+                              const catPayment = paidCats[catName];
+                              const isCatPaid = catPayment?.status === "paid" || pay?.status === "paid";
+                              const catPending = isCatPaid ? 0 : expectedAmount;
+                              return (
+                                <div key={catName} style={{ fontSize: 11, padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.02)" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 500 }}>
+                                    <span style={{ color: "var(--text-secondary)" }}>{catName}</span>
+                                    <span style={{ color: isCatPaid ? "var(--accent-green)" : "var(--accent-red)", fontWeight: 600 }}>
+                                      {isCatPaid ? "Paid" : "Pending"}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)", fontSize: 10, marginTop: 2 }}>
+                                    <span>Fee: ₹{(expectedAmount || 0).toLocaleString("en-IN")}</span>
+                                    <span>Due: ₹{(catPending || 0).toLocaleString("en-IN")}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
 
                           {s.deadline && <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>Due: {s.deadline}</div>}
-                          <StatusBadge status={status} />
                           {pay?.status === "paid" && (
                             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, lineHeight: "1.4" }}>
                               Paid On: {pay.paidOn}<br />
@@ -587,7 +610,7 @@ export default function StudentFeeRecords() {
                           )}
                         </div>
                         <div>
-                          {pay?.status === "paid" ? (
+                          {status === "paid" ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
                               <button
                                 className="btn btn-secondary btn-sm"

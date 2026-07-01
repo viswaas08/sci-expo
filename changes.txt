@@ -33,5 +33,14 @@ PROJECT CHANGES AND MODIFICATIONS LOG
 * Updated the Student Detail Modal inside StudentFeeRecords.jsx to explicitly show the expected semester fee, actual paid amount, and outstanding pending balance for each individual semester.
 * Enhanced the Payment History dashboard (PaymentHistory.jsx) to include a Batch filter dropdown, a Batch column in the payment table, and support exporting the Batch ID in the CSV exporter.
 * Updated the payment transaction logger (StudentFeeRecords.jsx) to record the student's own department, section, batchId, and admissionYear on newly created payment records, ensuring database consistency.
-
-
+* Refactored Fee Structure setup (ManageFeeStructure.jsx) to support dynamic fee categories (Tuition, Hostel, and custom categories) per semester instead of a single flat amount.
+* Added a Fee Categories Configurator to ManageFeeStructure.jsx, allowing staff to add or remove custom fee categories in real-time.
+* Updated semester structure loading and saving algorithms in ManageFeeStructure.jsx to merge and persist category amounts under the "fees" map in the Firestore sub-documents.
+* Updated the Student Detail Modal inside StudentFeeRecords.jsx to display a detailed table breakdown showing individual paid/pending status for all configured categories in each semester.
+* Built a new public, mobile-responsive Payment Simulator page (PaymentSimulator.jsx) representing a secure mock banking/UPI gateway.
+* Configured the payment simulator to record category-wise payment authorizations to Firestore under "feePayments/{studentUid}/semesters/sem{n}" in real-time.
+* Overhauled parent/student billing dashboard (FeeStatus.jsx) to display category breakdown cards with individual "Pay" buttons.
+* Developed an interactive payment modal in FeeStatus.jsx, offering credit card inputs and scanning of UPI QR codes pointing to the mobile payment simulator.
+* Added a real-time Firestore database snapshot listener in FeeStatus.jsx to dynamically detect successful mobile UPI authorizations and update user balances instantly.
+* Registered the new "/payment-sim" route and student "/student/fees" route in App.jsx.
+* Registered the "Fee Status" navigation tab in the student sidebar.

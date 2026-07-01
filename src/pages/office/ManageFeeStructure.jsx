@@ -19,7 +19,18 @@ export default function ManageFeeStructure() {
   const [selectedDept, setSelectedDept] = useState("");
   const [selectedSection, setSelectedSection] = useState("A");
   const semCount = 8; // Locked to 8 semesters (4 years)
-  const [semesters, setSemesters] = useState(Array.from({ length: 8 }, (_, i) => ({ sem: i + 1, amount: "", deadline: "" })));
+
+  // Custom Category-wise fee configuration states
+  const [feeCategories, setFeeCategories] = useState(["Tuition Fees", "Hostel Fees", "Other Fees"]);
+  const [newCategoryName, setNewCategoryName] = useState("");
+
+  const [semesters, setSemesters] = useState(
+    Array.from({ length: 8 }, (_, i) => ({
+      sem: i + 1,
+      fees: { "Tuition Fees": "", "Hostel Fees": "", "Other Fees": "" },
+      deadline: ""
+    }))
+  );
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
@@ -114,6 +125,32 @@ export default function ManageFeeStructure() {
     }
   };
 
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) return;
+    const cat = newCategoryName.trim();
+    if (feeCategories.includes(cat)) {
+      alert("Category already exists.");
+      return;
+    }
+    const updatedCats = [...feeCategories, cat];
+    setFeeCategories(updatedCats);
+    setSemesters(prev => prev.map(s => ({
+      ...s,
+      fees: { ...s.fees, [cat]: "" }
+    })));
+    setNewCategoryName("");
+  };
+
+  const handleRemoveCategory = (cat) => {
+    if (["Tuition Fees", "Hostel Fees", "Other Fees"].includes(cat)) return;
+    setFeeCategories(feeCategories.filter(c => c !== cat));
+    setSemesters(prev => prev.map(s => {
+      const nextFees = { ...s.fees };
+      delete nextFees[cat];
+      return { ...s, fees: nextFees };
+    }));
+  };
+
   // Reload structure when dept/batch/section changes
   useEffect(() => {
     if (!selectedDept || !selectedBatchId) return;
@@ -126,21 +163,68 @@ export default function ManageFeeStructure() {
       const hasData = Object.keys(existing).length > 0;
       setIsEditMode(hasData);
       setExistingStructureKey(hasData ? key : null);
-      setSemesters(prev => prev.map(s => ({
-        ...s,
-        amount: existing[`sem${s.sem}`]?.amount || "",
-        deadline: existing[`sem${s.sem}`]?.deadline || "",
-      })));
+
+      // Collect all unique categories found across loaded semester data
+      const foundCategories = new Set(["Tuition Fees", "Hostel Fees", "Other Fees"]);
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.fees) {
+          Object.keys(data.fees).forEach(cat => foundCategories.add(cat));
+        }
+      });
+      const activeCats = Array.from(foundCategories);
+      setFeeCategories(activeCats);
+
+      setSemesters(prev => prev.map(s => {
+        const data = existing[`sem${s.sem}`];
+        const feesObj = {};
+        activeCats.forEach(cat => {
+          feesObj[cat] = "";
+        });
+
+        if (data) {
+          if (data.fees) {
+            Object.assign(feesObj, data.fees);
+          } else if (data.amount) {
+            // Backward-compatible fallback mapping old amount parameter to Tuition Fees
+            feesObj["Tuition Fees"] = data.amount;
+          }
+        }
+
+        return {
+          sem: s.sem,
+          fees: feesObj,
+          deadline: data?.deadline || "",
+        };
+      }));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [selectedDept, selectedBatchId, selectedSection, semCount]);
 
-  const updateSem = (sem, field, value) => {
-    setSemesters(prev => prev.map(s => s.sem === sem ? { ...s, [field]: value } : s));
+  const updateSemFee = (sem, cat, value) => {
+    setSemesters(prev => prev.map(s => {
+      if (s.sem === sem) {
+        return {
+          ...s,
+          fees: { ...s.fees, [cat]: value }
+        };
+      }
+      return s;
+    }));
+  };
+
+  const updateSemDeadline = (sem, value) => {
+    setSemesters(prev => prev.map(s => s.sem === sem ? { ...s, deadline: value } : s));
   };
 
   const handleReset = () => {
-    setSemesters(prev => prev.map(s => ({ ...s, amount: "", deadline: "" })));
+    setSemesters(prev => {
+      return prev.map(s => {
+        const clearedFees = {};
+        feeCategories.forEach(cat => { clearedFees[cat] = ""; });
+        return { ...s, fees: clearedFees, deadline: "" };
+      });
+    });
     setIsEditMode(false);
     setSuccess("Form cleared. Fill in new values and save.");
   };
@@ -160,24 +244,29 @@ export default function ManageFeeStructure() {
           dept: selectedDept,
           batchId: selectedBatchId,
           section: applyAll ? "ALL" : selectedSection,
-          programYears: parseInt(programType),
+          programYears: 4,
           semesterCount: semCount,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
 
         // Save per-semester sub-documents
         for (const s of semesters) {
-          if (s.amount) {
-            await setDoc(doc(db, "feeStructures", key, "semesters", `sem${s.sem}`), {
-              semester: s.sem,
-              amount: parseFloat(s.amount) || 0,
-              deadline: s.deadline || "",
-              key,
-              dept: selectedDept,
-              batchId: selectedBatchId,
-              updatedAt: new Date().toISOString(),
-            });
-          }
+          const semAmount = Object.values(s.fees || {}).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
+          const cleanFees = {};
+          Object.entries(s.fees || {}).forEach(([cat, val]) => {
+            cleanFees[cat] = parseFloat(val) || 0;
+          });
+
+          await setDoc(doc(db, "feeStructures", key, "semesters", `sem${s.sem}`), {
+            semester: s.sem,
+            amount: semAmount, // fallback total amount for backwards compatibility
+            fees: cleanFees,   // detailed categories map
+            deadline: s.deadline || "",
+            key,
+            dept: selectedDept,
+            batchId: selectedBatchId,
+            updatedAt: new Date().toISOString(),
+          });
         }
       }
       setIsEditMode(true);
@@ -217,7 +306,10 @@ export default function ManageFeeStructure() {
     setSaving(false);
   };
 
-  const totalFees = semesters.reduce((s, x) => s + (parseFloat(x.amount) || 0), 0);
+  const totalFees = semesters.reduce((sum, sem) => {
+    const semSum = Object.values(sem.fees || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+    return sum + semSum;
+  }, 0);
 
   return (
     <div className="app-layout">
@@ -334,6 +426,48 @@ export default function ManageFeeStructure() {
                 </div>
               )}
 
+              {/* Fee Categories Management */}
+              <div className="glass-card" style={{ marginBottom: 16 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: 1 }}>
+                  ➕ Fee Categories Configurator
+                </h4>
+                <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {feeCategories.map(cat => (
+                      <span key={cat} className="badge badge-blue" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", fontSize: 12 }}>
+                        {cat}
+                        {!["Tuition Fees", "Hostel Fees", "Other Fees"].includes(cat) && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCategory(cat)}
+                            style={{ background: "none", border: "none", color: "var(--accent-red)", cursor: "pointer", fontSize: 14, padding: 0, fontWeight: "bold", marginLeft: 4 }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 240 }}>
+                    <input
+                      className="form-control"
+                      style={{ height: 38 }}
+                      placeholder="Add custom fee (e.g. Transport Fees)"
+                      value={newCategoryName}
+                      onChange={e => setNewCategoryName(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleAddCategory}
+                      style={{ whiteSpace: "nowrap", padding: "0 16px" }}
+                    >
+                      Add Category
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div className="glass-card">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
                   <h3 style={{ fontSize: 15, fontWeight: 700 }}>
@@ -341,11 +475,11 @@ export default function ManageFeeStructure() {
                     {semCount} Semesters · {selectedDept} · {batches.find(b => b.id === selectedBatchId)?.name || selectedBatchId}{!applyAll ? ` · Section ${selectedSection}` : " · All Sections"}
                   </h3>
                   <div style={{ fontWeight: 700, color: "var(--accent-blue)", fontSize: 16 }}>
-                    Total Annual: ₹{totalFees.toLocaleString("en-IN")}
+                    Total Fees: ₹{totalFees.toLocaleString("en-IN")}
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
                   {semesters.map(s => (
                     <div key={s.sem} style={{
                       padding: "18px 20px",
@@ -353,27 +487,37 @@ export default function ManageFeeStructure() {
                       border: "1px solid var(--border)",
                       borderRadius: 12,
                     }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, color: "var(--accent-purple)" }}>
-                        Semester {s.sem}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: "var(--accent-purple)" }}>
+                          Semester {s.sem}
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                          Total: ₹{Object.values(s.fees || {}).reduce((sum, v) => sum + (parseFloat(v) || 0), 0).toLocaleString("en-IN")}
+                        </div>
                       </div>
-                      <div className="form-group" style={{ marginBottom: 12 }}>
-                        <label>Fee Amount (₹)</label>
-                        <input
-                          className="form-control"
-                          type="number"
-                          min="0"
-                          placeholder="0"
-                          value={s.amount}
-                          onChange={e => updateSem(s.sem, "amount", e.target.value)}
-                        />
-                      </div>
+
+                      {/* Inputs for each Category */}
+                      {feeCategories.map(cat => (
+                        <div key={cat} className="form-group" style={{ marginBottom: 12 }}>
+                          <label style={{ fontSize: 11 }}>{cat} Amount (₹)</label>
+                          <input
+                            className="form-control"
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={s.fees?.[cat] || ""}
+                            onChange={e => updateSemFee(s.sem, cat, e.target.value)}
+                          />
+                        </div>
+                      ))}
+
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label>Payment Due Date</label>
                         <input
                           className="form-control"
                           type="date"
                           value={s.deadline}
-                          onChange={e => updateSem(s.sem, "deadline", e.target.value)}
+                          onChange={e => updateSemDeadline(s.sem, e.target.value)}
                         />
                       </div>
                       {s.deadline && (
